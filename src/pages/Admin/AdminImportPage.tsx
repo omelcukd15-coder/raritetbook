@@ -1,7 +1,29 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Download, FileCode2, Lock, Upload } from 'lucide-react';
-import type { BookChapter, CategoryId, ContentBlock, FullBookData } from '../../types/library';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  Activity,
+  Bookmark,
+  BookOpen,
+  CheckCircle2,
+  Database,
+  Download,
+  FileCode2,
+  HardDrive,
+  Lock,
+  RefreshCw,
+  Upload,
+  Users,
+} from 'lucide-react';
+import type {
+  AdminLiveStats,
+  BookChapter,
+  CatalogManifest,
+  CategoryId,
+  ContentBlock,
+  FullBookData,
+} from '../../types/library';
 import { API_BASE_URL } from '../../services/storageAndSync';
+import { loadCatalogManifest } from '../../services/catalogService';
 import { BookCover } from '../../components/BookCover/BookCover';
 
 const MAX_XML_SECTION_DEPTH = 6;
@@ -26,7 +48,6 @@ function slugifyRu(input: string): string {
 }
 
 function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, legalStatus: string): FullBookData {
-  // Защита от XXE / Billion Laughs DTD-экспансии
   if (/<!(?:DOCTYPE|ENTITY)/i.test(xmlText)) {
     throw new Error('Запрещённые DTD/ENTITY-декларации в XML-файле.');
   }
@@ -167,11 +188,30 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
   };
 }
 
+function fmtDate(ts: number): string {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export const AdminImportPage: React.FC = () => {
   const [unlocked, setUnlocked] = useState(false);
   const [adminKey, setAdminKey] = useState('');
+  const [sessionKey, setSessionKey] = useState('');
   const [authErr, setAuthErr] = useState('');
   const [verifying, setVerifying] = useState(false);
+
+  // Живая аналитика D1 + манифест шардов 100K
+  const [liveStats, setLiveStats] = useState<AdminLiveStats | null>(null);
+  const [manifest, setManifest] = useState<CatalogManifest | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Конвертер FB2
   const [category, setCategory] = useState<CategoryId>('russian-classics');
   const [sourceUrl, setSourceUrl] = useState('');
   const [legalStatus, setLegalStatus] = useState(
@@ -180,25 +220,61 @@ export const AdminImportPage: React.FC = () => {
   const [parsedBook, setParsedBook] = useState<FullBookData | null>(null);
   const [error, setError] = useState('');
 
+  const fetchAdminTelemetry = useCallback(async (keyToUse: string) => {
+    if (!keyToUse) return;
+    setStatsLoading(true);
+    try {
+      const [statsResp, mf] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/admin/stats`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: keyToUse }),
+        }),
+        loadCatalogManifest().catch(() => null),
+      ]);
+      if (mf) setManifest(mf);
+      if (statsResp.ok) {
+        const data = await statsResp.json();
+        if (data.stats) setLiveStats(data.stats);
+      }
+    } catch {
+      // ignore transient error
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!unlocked || !sessionKey) return;
+    const timer = setInterval(() => {
+      void fetchAdminTelemetry(sessionKey);
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [unlocked, sessionKey, fetchAdminTelemetry]);
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthErr('');
     setVerifying(true);
+    const trimmed = adminKey.trim();
     try {
-      const resp = await fetch(`${API_BASE_URL}/api/admin/verify`, {
+      const resp = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: adminKey.trim() }),
+        body: JSON.stringify({ key: trimmed }),
       });
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.ok) {
+        setSessionKey(trimmed);
+        setLiveStats(data.stats || null);
         setUnlocked(true);
         setAdminKey('');
+        void loadCatalogManifest().then(setManifest).catch(() => null);
       } else {
         setAuthErr(data.error || 'Неверный ключ администратора.');
       }
     } catch {
-      setAuthErr('Не удалось проверить ключ на сервере.');
+      setAuthErr('Не удалось связаться с облачным сервером проверки.');
     } finally {
       setVerifying(false);
     }
@@ -239,11 +315,11 @@ export const AdminImportPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <Lock size={20} color="var(--gold-bright)" />
             <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.65rem', margin: 0 }}>
-              Служебный вход администратора
+              Панель управления архивом
             </h1>
           </div>
           <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>
-            Инструмент проверки прав и конвертации FB2 → <code>book.json</code>. Ключ проверяется на защищённом сервере Cloudflare с защитой от перебора.
+            Живая облачная статистика читателей (Cloudflare D1), мониторинг ёмкости 100 000 книг и конвейер конвертации FB2.
           </p>
           <form onSubmit={handleUnlock}>
             <input
@@ -259,7 +335,7 @@ export const AdminImportPage: React.FC = () => {
               <div style={{ color: '#f28b6d', fontSize: '0.84rem', marginBottom: 10 }}>{authErr}</div>
             )}
             <button type="submit" disabled={verifying} className="rb-btn rb-btn--gold" style={{ width: '100%' }}>
-              {verifying ? 'Проверка ключа...' : 'Открыть консоль импорта'}
+              {verifying ? 'Проверка ключа...' : 'Войти в консоль администратора'}
             </button>
           </form>
         </div>
@@ -267,15 +343,210 @@ export const AdminImportPage: React.FC = () => {
     );
   }
 
+  const totalBooks = manifest?.totalBooks || 15000;
+  const maxCap = manifest?.maxCapacity || 100000;
+  const capPct = Math.min(100, Math.round((totalBooks / maxCap) * 100));
+
   return (
-    <main className="rb-container" style={{ paddingTop: 28, paddingBottom: 48 }}>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.2rem', marginTop: 0 }}>
-        Конвейер импорта FB2 → Архив
-      </h1>
+    <main className="rb-container" style={{ paddingTop: 28, paddingBottom: 56 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          marginBottom: 20,
+        }}
+      >
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.1rem', margin: 0 }}>
+            Центр управления RaritetBook.ru
+          </h1>
+          <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+            Живая телеметрия базы Cloudflare D1 • Авто-шардированный движок на 100 000 томов (автообновление каждые 30 сек)
+          </div>
+        </div>
+        <button
+          type="button"
+          className="rb-btn rb-btn--sm"
+          disabled={statsLoading}
+          onClick={() => fetchAdminTelemetry(sessionKey)}
+        >
+          <RefreshCw size={15} /> {statsLoading ? 'Обновление…' : 'Обновить данные'}
+        </button>
+      </div>
+
+      {/* KPI КАРТОЧКИ ЖИВОЙ СТАТИСТИКИ ПОЛЬЗОВАТЕЛЕЙ И ФОНДА */}
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 14,
+          marginBottom: 20,
+        }}
+      >
+        <div className="rb-panel" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <Users size={16} color="var(--gold-bright)" /> Читателей в облаке D1
+          </div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, marginTop: 4 }}>
+            {(liveStats?.totalUsers ?? 0).toLocaleString('ru-RU')}
+          </div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--gold-bright)' }}>
+            +{liveStats?.newUsers24h ?? 0} за последние 24 часа
+          </div>
+        </div>
+
+        <div className="rb-panel" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <Activity size={16} color="var(--gold-bright)" /> Активны (24ч / 7 дней)
+          </div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, marginTop: 4 }}>
+            {liveStats?.activeUsers24h ?? 0}{' '}
+            <span style={{ fontSize: '1.15rem', color: 'var(--text-muted)' }}>
+              / {liveStats?.activeUsers7d ?? 0}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            Синхронизаций чтения без VPN
+          </div>
+        </div>
+
+        <div className="rb-panel" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <Bookmark size={16} color="var(--gold-bright)" /> Начато книг / Закладок
+          </div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, marginTop: 4 }}>
+            {liveStats?.totalReadingRecords ?? 0}{' '}
+            <span style={{ fontSize: '1.15rem', color: 'var(--text-muted)' }}>
+              / {liveStats?.totalBookmarks ?? 0}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+            Сохранено в облачных билетах
+          </div>
+        </div>
+
+        <div className="rb-panel" style={{ padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <HardDrive size={16} color="var(--gold-bright)" /> Фонд архива (из 100K)
+          </div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 700, marginTop: 4 }}>
+            {totalBooks.toLocaleString('ru-RU')}
+          </div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--gold-bright)' }}>
+            {manifest?.chunks.length || 3} индексных чанка • {manifest?.shardRepos.length || 2} CDN-репозитория
+          </div>
+        </div>
+      </section>
+
+      {/* ПОЛОСА ЗАПАСА МОЩНОСТИ ПОД 100 000 КНИГ */}
+      <div className="rb-panel" style={{ marginBottom: 22, padding: '14px 18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          <span>
+            <Database size={14} style={{ verticalAlign: 'middle', marginRight: 6, color: 'var(--gold-bright)' }} />
+            Заполнение авто-шардированной архитектуры <strong>100 000 томов</strong>:
+          </span>
+          <strong style={{ color: 'var(--gold-bright)' }}>
+            {totalBooks.toLocaleString('ru-RU')} / {maxCap.toLocaleString('ru-RU')} книг ({capPct}%) •{' '}
+            {Math.round((manifest?.totalWords || 90_000_000) / 1_000_000)} млн слов
+          </strong>
+        </div>
+        <div className="rb-progress-track" style={{ height: 8 }}>
+          <div className="rb-progress-fill" style={{ width: `${Math.max(2, capPct)}%` }} />
+        </div>
+      </div>
+
+      {/* ДВЕ КОЛОНКИ АНАЛИТИКИ: ПОСЛЕДНИЕ ПОЛЬЗОВАТЕЛИ + ТОП ЧИТАЕМЫХ КНИГ */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 20,
+          marginBottom: 28,
+        }}
+      >
+        <div className="rb-panel">
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', marginTop: 0 }}>
+            Последние читатели в облаке
+          </h2>
+          {!liveStats?.recentUsers.length ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+              Пока нет зарегистрированных облачных аккаунтов. Создайте тестовый аккаунт на сайте — он мгновенно появится здесь!
+            </p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 8px' }}>E-mail</th>
+                    <th style={{ padding: '6px 8px' }}>Книг / Закл.</th>
+                    <th style={{ padding: '6px 8px' }}>Активность</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveStats.recentUsers.map((u) => (
+                    <tr key={u.email} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '7px 8px', fontWeight: 500 }}>{u.email}</td>
+                      <td style={{ padding: '7px 8px', color: 'var(--gold-bright)' }}>
+                        {u.booksCount} / {u.bookmarksCount}
+                      </td>
+                      <td style={{ padding: '7px 8px', color: 'var(--text-muted)' }}>{fmtDate(u.updatedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="rb-panel">
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', marginTop: 0 }}>
+            Топ читаемых произведений
+          </h2>
+          {!liveStats?.topBooks.length ? (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+              Рейтинг формируется автоматически на основе синхронизированного прогресса читателей.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {liveStats.topBooks.map((tb, idx) => (
+                <div
+                  key={tb.slug}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    background: 'rgba(255,255,255,0.025)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <Link to={`/book/${tb.slug}`} style={{ color: 'var(--text-main)', textDecoration: 'none' }}>
+                    <strong style={{ color: 'var(--gold-bright)', marginRight: 6 }}>#{idx + 1}</strong>
+                    <BookOpen size={13} style={{ verticalAlign: 'middle', marginRight: 5 }} />
+                    {tb.slug}
+                  </Link>
+                  <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: 8 }}>
+                    {tb.readers} чит. • ср. {tb.avgPercent}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* КОНВЕЙЕР ИМПОРТА FB2 */}
+      <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', margin: '0 0 14px' }}>
+        Конвейер проверки и конвертации FB2 → Архив
+      </h2>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 22 }}>
         <div className="rb-panel">
-          <h2 style={{ fontFamily: 'var(--font-heading)', marginTop: 0 }}>1. Загрузка и проверка прав</h2>
+          <h3 style={{ fontFamily: 'var(--font-heading)', marginTop: 0 }}>1. Загрузка и проверка прав</h3>
 
           <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 4 }}>
             Категория фонда
@@ -325,7 +596,7 @@ export const AdminImportPage: React.FC = () => {
         </div>
 
         <div className="rb-panel">
-          <h2 style={{ fontFamily: 'var(--font-heading)', marginTop: 0 }}>2. Предпросмотр карточки и JSON</h2>
+          <h3 style={{ fontFamily: 'var(--font-heading)', marginTop: 0 }}>2. Предпросмотр карточки и JSON</h3>
           {!parsedBook ? (
             <p style={{ color: 'var(--text-muted)' }}>
               Загрузите <code>.fb2</code>, чтобы проверить XML-структуру, извлечённые главы, стихи, эпиграфы и обложку.

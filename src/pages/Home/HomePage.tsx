@@ -13,8 +13,8 @@ import {
   Type,
   Zap,
 } from 'lucide-react';
-import type { BookChapter, CatalogBookLite, CategoryMeta, UserSession } from '../../types/library';
-import { loadCatalogLite, loadCategories } from '../../services/catalogService';
+import type { BookChapter, CatalogBookLite, CategoryMeta, HomeFeaturedPayload, UserSession } from '../../types/library';
+import { loadCatalogLite, loadCategories, loadHomeFeatured } from '../../services/catalogService';
 import { getAllProgress, registerAccount } from '../../services/storageAndSync';
 import { BookCard } from '../../components/BookCard/BookCard';
 
@@ -32,7 +32,8 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
-  const [books, setBooks] = useState<CatalogBookLite[]>([]);
+  const [featured, setFeatured] = useState<HomeFeaturedPayload | null>(null);
+  const [extraBooks, setExtraBooks] = useState<CatalogBookLite[]>([]);
   const [preview, setPreview] = useState<HeroPreviewData | null>(null);
   const [previewChIdx, setPreviewChIdx] = useState(0); // Глава 1 поэмы «Мцыри»
   const [heroScene, setHeroScene] = useState<'caucasus' | 'library'>('caucasus');
@@ -48,7 +49,11 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   useEffect(() => {
     document.title = 'RaritetBook.ru — Старинные книги. Вечные знания | Открытая цифровая библиотека';
     void loadCategories().then(setCategories);
-    void loadCatalogLite().then(setBooks);
+    void loadHomeFeatured().then(setFeatured);
+    // Полный шардированный каталог догружаем только если у читателя есть начатые книги для полки «Продолжить чтение»
+    if (Object.keys(getAllProgress()).length > 0) {
+      void loadCatalogLite().then(setExtraBooks);
+    }
     fetch('/archive-meta/hero-preview.json')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -59,25 +64,33 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
       })
       .catch(() => null);
 
-    const onProg = () => setProgressMap(getAllProgress());
+    const onProg = () => {
+      const nextProg = getAllProgress();
+      setProgressMap(nextProg);
+      if (Object.keys(nextProg).length > 0) {
+        void loadCatalogLite().then(setExtraBooks);
+      }
+    };
     window.addEventListener('raritetbook:progress-updated', onProg);
     return () => window.removeEventListener('raritetbook:progress-updated', onProg);
   }, []);
 
+  const knownPool = extraBooks.length > 0
+    ? extraBooks
+    : [...(featured?.flagships || []), ...(featured?.science || []), ...(featured?.recent || [])];
+
   const continueBooks = Object.values(progressMap)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((p) => {
-      const b = books.find((x) => x.slug === p.slug);
+      const b = knownPool.find((x) => x.slug === p.slug);
       return b ? { book: b, percent: p.percent } : null;
     })
     .filter(Boolean) as { book: CatalogBookLite; percent: number }[];
 
-  const flagshipBooks = books.filter((b) => b.rank > 0).slice(0, 12);
-  const scienceAndTextbooks = books
-    .filter((b) => (b.cat === 'rare-editions' || b.cat === 'science') && b.rank > 0)
-    .concat(books.filter((b) => (b.cat === 'rare-editions' || b.cat === 'science') && b.rank === 0).slice(0, 8))
-    .slice(0, 6);
-  const recentAdditions = books.filter((b) => b.rank === 0).slice(0, 6);
+  const flagshipBooks = (featured?.flagships || []).slice(0, 12);
+  const scienceAndTextbooks = (featured?.science || []).slice(0, 6);
+  const recentAdditions = (featured?.recent || []).slice(0, 6);
+  const totalBooksCount = featured?.totalBooks || categories.reduce((s, c) => s + c.booksCount, 0) || 15000;
 
   const activeChapter = preview?.chapters?.[previewChIdx];
 
@@ -296,7 +309,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
         <div className="rb-shelf__head">
           <h2 className="rb-shelf__title">Избранные памятники и классика</h2>
           <Link to="/catalog" className="rb-shelf__more">
-            Весь фонд ({books.length.toLocaleString('ru-RU')} книг) →
+            Весь фонд ({totalBooksCount.toLocaleString('ru-RU')} книг) →
           </Link>
         </div>
         <div className="rb-books-grid">
@@ -368,7 +381,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
               <strong style={{ color: 'var(--text-main)' }}>RaritetBook.ru</strong> — открытая цифровая библиотека старинных, научных и классических изданий для всех, кто ценит историю, культуру и первоисточники.
             </p>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-              В архиве уже собрано <strong>{books.length || 1020}</strong> полных проверенных книг без рекламы и платных подписок.
+              В архиве уже собрано <strong>{totalBooksCount.toLocaleString('ru-RU')}</strong> полных проверенных книг без рекламы и платных подписок.
             </p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <Link to="/about" className="rb-btn rb-btn--sm">Узнать больше →</Link>

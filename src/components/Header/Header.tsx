@@ -117,15 +117,15 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
         {/* Мобильная строка поиска с кнопкой ӕ (как на референсе смартфона!) */}
         <div className="rb-mobile-search-strip">
           <form className="rb-search-box" onSubmit={handleSubmit} role="search">
-            <input
-              ref={mobileInputRef}
-              type="search"
-              maxLength={100}
-              className="rb-search-box__input"
-              placeholder="Поиск по 10 000 книгам..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value.slice(0, 100))}
-            />
+              <input
+                ref={mobileInputRef}
+                type="search"
+                maxLength={100}
+                className="rb-search-box__input"
+                placeholder="Поиск по фонду библиотеки..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value.slice(0, 100))}
+              />
             <button
               type="button"
               className="rb-search-box__ae"
@@ -152,7 +152,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
               Главная страница
             </Link>
             <Link to="/catalog" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
-              Каталог библиотеки (10 000 томов)
+              Каталог библиотеки
             </Link>
             <Link to="/about" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
               О проекте и правовой статус

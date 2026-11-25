@@ -25,6 +25,53 @@ export interface CatalogBookLite {
   w: number;        // wordsCount
   rm: number;       // readingMinutes
   rank: number;     // flagship priority
+  sh?: number;      // CDN shard index (0..9 for 100,000 books)
+}
+
+export interface CatalogManifest {
+  version: string;
+  generatedAt: string;
+  totalBooks: number;
+  totalWords: number;
+  chunkSize: number;
+  maxCapacity: number;
+  catMap: CategoryId[];
+  langMap: string[];
+  shardRepos: string[];
+  chunks: string[];
+}
+
+export interface HomeFeaturedPayload {
+  version: string;
+  totalBooks: number;
+  totalWords: number;
+  maxCapacity: number;
+  shardsCount: number;
+  flagships: CatalogBookLite[];
+  science: CatalogBookLite[];
+  recent: CatalogBookLite[];
+}
+
+export interface AdminLiveStats {
+  totalUsers: number;
+  newUsers24h: number;
+  activeUsers24h: number;
+  activeUsers7d: number;
+  totalReadingRecords: number;
+  totalBookmarks: number;
+  recentUsers: {
+    email: string;
+    createdAt: number;
+    updatedAt: number;
+    booksCount: number;
+    bookmarksCount: number;
+  }[];
+  topBooks: {
+    slug: string;
+    readers: number;
+    avgPercent: number;
+  }[];
+  serverTime: number;
 }
 
 export interface CategoryMeta {
@@ -52,6 +99,7 @@ export interface BookChapter {
 export interface FullBookData {
   id: string;
   slug: string;
+  shard?: number;
   title: string;
   altTitles: string[];
   author: string;

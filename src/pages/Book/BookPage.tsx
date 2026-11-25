@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, CheckCircle2, Download, ExternalLink, Scale } from 'lucide-react';
 import type { CatalogBookLite, FullBookData } from '../../types/library';
-import { getBookArchiveUrl, loadCatalogLite, loadFullBook } from '../../services/catalogService';
+import { getBookArchiveUrl, loadFirstCatalogChunk, loadFullBook } from '../../services/catalogService';
 import { getBookProgress } from '../../services/storageAndSync';
 import { BookCover } from '../../components/BookCover/BookCover';
 import { BookCard } from '../../components/BookCard/BookCard';
@@ -32,19 +32,23 @@ export const BookPage: React.FC = () => {
     window.scrollTo(0, 0);
 
     loadFullBook(slug)
-      .then(async ({ book: full, fromOfflineCache }) => {
+      .then(({ book: full, fromOfflineCache }) => {
         setBook(full);
         setOfflineReady(true || fromOfflineCache);
+        setLoading(false);
         document.title = `${full.title} — ${full.authorShort} | Читать бесплатно на RaritetBook.ru`;
 
-        const catalog = await loadCatalogLite();
-        const sameAuthorOrCat = catalog
-          .filter((b) => b.slug !== slug && (b.aslug === full.authorSlug || b.cat === full.category))
-          .slice(0, 6);
-        setRelated(sameAuthorOrCat);
+        void loadFirstCatalogChunk().then((chunk) => {
+          const sameAuthorOrCat = chunk
+            .filter((b) => b.slug !== slug && (b.aslug === full.authorSlug || b.cat === full.category))
+            .slice(0, 6);
+          setRelated(sameAuthorOrCat);
+        });
       })
-      .catch((err: any) => setError(err?.message || 'Ошибка загрузки книги'))
-      .finally(() => setLoading(false));
+      .catch((err: any) => {
+        setError(err?.message || 'Ошибка загрузки книги');
+        setLoading(false);
+      });
   }, [slug]);
 
   if (loading) {
@@ -67,7 +71,7 @@ export const BookPage: React.FC = () => {
     );
   }
 
-  const fb2DownloadHref = getBookArchiveUrl(book.authorSlug, book.slug, 'original.fb2');
+  const fb2DownloadHref = getBookArchiveUrl(book.authorSlug, book.slug, 'original.fb2', book.shard || 0);
 
   const handleDownloadFb2 = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();

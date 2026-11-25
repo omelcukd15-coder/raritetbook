@@ -283,6 +283,108 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     return jsonResp({ ok: true }, 200, origin);
   }
 
+  if (path === '/api/admin/stats' && request.method === 'POST') {
+    if (!checkRateLimit(clientIp, 'auth', 20, 60_000)) {
+      return jsonResp({ error: 'Слишком много запросов. Подождите минуту.' }, 429, origin);
+    }
+    const body: any = await request.json().catch(() => ({}));
+    const keyCandidate = String(body.key || '');
+    const expected = env.ADMIN_PASSWORD || `${env.SESSION_SECRET.slice(0, 16)}#RaritetAdmin`;
+    if (!keyCandidate || !timingSafeEqualStr(keyCandidate, expected)) {
+      return jsonResp({ error: 'Неверный ключ администратора' }, 401, origin);
+    }
+
+    const now = Date.now();
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+    const summary = await env.DB.prepare(
+      `SELECT
+        COUNT(*) as totalUsers,
+        SUM(CASE WHEN created_at >= ?1 THEN 1 ELSE 0 END) as newUsers24h,
+        SUM(CASE WHEN updated_at >= ?1 THEN 1 ELSE 0 END) as activeUsers24h,
+        SUM(CASE WHEN updated_at >= ?2 THEN 1 ELSE 0 END) as activeUsers7d
+      FROM users`
+    )
+      .bind(dayAgo, weekAgo)
+      .first();
+
+    const rowsRes = await env.DB.prepare(
+      'SELECT email, progress, created_at, updated_at FROM users ORDER BY updated_at DESC LIMIT 200'
+    ).all();
+    const rows: any[] = rowsRes?.results || [];
+
+    let totalReadingRecords = 0;
+    let totalBookmarks = 0;
+    const bookAgg = new Map<string, { readers: number; sumPct: number }>();
+
+    const recentUsers = rows.slice(0, 25).map((r) => {
+      let booksCount = 0;
+      let bookmarksCount = 0;
+      try {
+        const p = JSON.parse(r.progress || '{}');
+        const booksObj = p.books && typeof p.books === 'object' ? p.books : {};
+        const entries = Object.values(booksObj) as any[];
+        booksCount = entries.length;
+        bookmarksCount = entries.filter((x) => x && x.bookmark).length;
+      } catch {
+        // ignore
+      }
+      return {
+        email: String(r.email || ''),
+        createdAt: Number(r.created_at) || 0,
+        updatedAt: Number(r.updated_at) || 0,
+        booksCount,
+        bookmarksCount,
+      };
+    });
+
+    for (const r of rows) {
+      try {
+        const p = JSON.parse(r.progress || '{}');
+        const booksObj = p.books && typeof p.books === 'object' ? p.books : {};
+        for (const [slug, val] of Object.entries(booksObj) as [string, any][]) {
+          totalReadingRecords += 1;
+          if (val?.bookmark) totalBookmarks += 1;
+          const prev = bookAgg.get(slug) || { readers: 0, sumPct: 0 };
+          prev.readers += 1;
+          prev.sumPct += Number(val?.percent) || 0;
+          bookAgg.set(slug, prev);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const topBooks = Array.from(bookAgg.entries())
+      .map(([slug, v]) => ({
+        slug,
+        readers: v.readers,
+        avgPercent: Math.round(v.sumPct / Math.max(1, v.readers)),
+      }))
+      .sort((a, b) => b.readers - a.readers || b.avgPercent - a.avgPercent)
+      .slice(0, 10);
+
+    return jsonResp(
+      {
+        ok: true,
+        stats: {
+          totalUsers: Number(summary?.totalUsers) || 0,
+          newUsers24h: Number(summary?.newUsers24h) || 0,
+          activeUsers24h: Number(summary?.activeUsers24h) || 0,
+          activeUsers7d: Number(summary?.activeUsers7d) || 0,
+          totalReadingRecords,
+          totalBookmarks,
+          recentUsers,
+          topBooks,
+          serverTime: now,
+        },
+      },
+      200,
+      origin
+    );
+  }
+
   if (path === '/api/auth/register' && request.method === 'POST') {
     if (!checkRateLimit(clientIp, 'auth', 12, 60_000)) {
       return jsonResp({ error: 'Слишком много попыток регистрации. Подождите 1 минуту.' }, 429, origin);

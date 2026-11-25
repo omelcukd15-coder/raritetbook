@@ -1,0 +1,29 @@
+{
+  "version": "4.0.15000",
+  "generatedAt": "2026-11-25T21:01:00Z",
+  "totalBooks": 15000,
+  "totalWords": 82256443,
+  "chunkSize": 5000,
+  "maxCapacity": 100000,
+  "catMap": [
+    "history",
+    "russian-classics",
+    "caucasus",
+    "foreign-classics",
+    "science",
+    "rare-editions"
+  ],
+  "langMap": [
+    "ru",
+    "os"
+  ],
+  "shardRepos": [
+    "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books/main",
+    "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-2/main"
+  ],
+  "chunks": [
+    "idx-0.json",
+    "idx-1.json",
+    "idx-2.json"
+  ]
+}

@@ -2,7 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { WifiOff } from 'lucide-react';
 import type { CatalogBookLite, CategoryMeta } from '../../types/library';
-import { loadCatalogLite, loadCategories, searchBooksInWorker } from '../../services/catalogService';
+import {
+  loadCategories,
+  searchBooksInWorker,
+  subscribeShardedCatalog,
+} from '../../services/catalogService';
 import { getAllProgress } from '../../services/storageAndSync';
 import { listOfflineBookSlugs } from '../../services/offlineDb';
 import { BookCard } from '../../components/BookCard/BookCard';
@@ -27,6 +31,8 @@ export const CatalogPage: React.FC = () => {
   const [matchedIds, setMatchedIds] = useState<string[] | null>(null);
   const [offlineSlugs, setOfflineSlugs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [totalExpected, setTotalExpected] = useState(0);
+  const [shardsReady, setShardsReady] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [progressMap, setProgressMap] = useState(getAllProgress);
@@ -38,14 +44,19 @@ export const CatalogPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    document.title = 'Каталог произведений (10 000 книг) — RaritetBook.ru';
-    Promise.all([loadCatalogLite(), loadCategories(), listOfflineBookSlugs()])
-      .then(([b, c, off]) => {
-        setBooks(b);
-        setCategories(c);
-        setOfflineSlugs(new Set(off));
-      })
-      .finally(() => setLoading(false));
+    document.title = 'Каталог цифровой библиотеки — RaritetBook.ru';
+    Promise.all([loadCategories(), listOfflineBookSlugs()]).then(([c, off]) => {
+      setCategories(c);
+      setOfflineSlugs(new Set(off));
+    });
+
+    const unsub = subscribeShardedCatalog((loadedBooks, done, expected) => {
+      setBooks(loadedBooks);
+      setTotalExpected(expected);
+      setShardsReady(done);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
   // Синхронизация URL-параметров при переходе из шапки или карточек категорий
@@ -73,7 +84,7 @@ export const CatalogPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, shardsReady]);
 
   const filteredBooks = useMemo(() => {
     let result = books;
@@ -144,9 +155,13 @@ export const CatalogPage: React.FC = () => {
           <p style={{ color: 'var(--text-muted)', margin: '0 0 18px', fontSize: '0.95rem' }}>
             Полные проверенные издания в общественном достоянии: найдено{' '}
             <strong style={{ color: 'var(--gold-bright)' }}>
-              {filteredBooks.length.toLocaleString('ru-RU')}
+              {(selectedCat === 'all' && !query.trim() && selectedLang === 'all' && !onlyOffline && totalExpected > books.length
+                ? totalExpected
+                : filteredBooks.length
+              ).toLocaleString('ru-RU')}
             </strong>{' '}
-            из {books.length.toLocaleString('ru-RU')} книг
+            из {(totalExpected || books.length).toLocaleString('ru-RU')} книг
+            {!shardsReady && books.length > 0 ? ' (подгрузка фоновых шардов…)' : ''}
           </p>
 
           {/* Поисковая строка каталога с кнопкой ӕ */}
@@ -227,7 +242,7 @@ export const CatalogPage: React.FC = () => {
               className={`rb-chip ${selectedCat === 'all' ? 'rb-chip--active' : ''}`}
               onClick={() => updateCategory('all')}
             >
-              Все разделы ({books.length})
+              Все разделы ({(totalExpected || books.length).toLocaleString('ru-RU')})
             </button>
             {categories.map((c) => (
               <button
