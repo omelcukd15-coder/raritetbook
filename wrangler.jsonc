@@ -1,0 +1,14 @@
+{
+  "name": "raritetbook-ru",
+  "compatibility_date": "2025-11-01",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "raritetbook-users",
+      "database_id": "681827f7-0575-404d-8089-47321b6496ef"
+    }
+  ]
+  // R2 бакет можно раскомментировать после включения R2 в Cloudflare Dashboard:
+  // "r2_buckets": [{ "binding": "ARCHIVE_BUCKET", "bucket_name": "raritetbook-archive" }]
+}

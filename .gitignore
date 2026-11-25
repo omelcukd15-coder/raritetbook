@@ -1,0 +1,8 @@
+node_modules/
+dist/
+archive/
+archive_deploy/
+.wrangler/
+.env
+.env.local
+*.log
