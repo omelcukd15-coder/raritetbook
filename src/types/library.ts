@@ -108,6 +108,7 @@ export interface BookReadingProgress {
 
 export interface UserSession {
   email: string;
+  token?: string;
   createdAt: number;
-  mode: 'cloud' | 'local-account';
+  mode: 'cloud';
 }

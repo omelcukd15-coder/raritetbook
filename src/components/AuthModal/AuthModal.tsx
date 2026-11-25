@@ -10,7 +10,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ open, user, onClose }) => {
-  const [tab, setTab] = useState<'login' | 'register'>('register');
+  const [tab, setTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -80,17 +80,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, user, onClose }) => 
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <button
                 type="button"
-                className={`rb-chip ${tab === 'register' ? 'rb-chip--active' : ''}`}
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setTab('register');
-                  setError('');
-                }}
-              >
-                Регистрация
-              </button>
-              <button
-                type="button"
                 className={`rb-chip ${tab === 'login' ? 'rb-chip--active' : ''}`}
                 style={{ flex: 1 }}
                 onClick={() => {
@@ -100,16 +89,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, user, onClose }) => 
               >
                 Вход
               </button>
+              <button
+                type="button"
+                className={`rb-chip ${tab === 'register' ? 'rb-chip--active' : ''}`}
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setTab('register');
+                  setError('');
+                }}
+              >
+                Регистрация
+              </button>
             </div>
 
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px' }}>
-              Регистрация необязательна: все книги доступны бесплатно. Аккаунт нужен только для переноса прогресса между устройствами.
+              Единый облачный аккаунт для компьютера и телефона: закладки и страница чтения синхронизируются автоматически.
             </p>
 
             <form onSubmit={handleSubmit}>
               <input
                 type="email"
                 required
+                maxLength={120}
+                autoComplete="email"
                 className="rb-field"
                 placeholder="E-mail"
                 value={email}
@@ -119,6 +121,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, user, onClose }) => 
                 type="password"
                 required
                 minLength={6}
+                maxLength={128}
+                autoComplete={tab === 'register' ? 'new-password' : 'current-password'}
                 className="rb-field"
                 placeholder="Пароль (минимум 6 символов)"
                 value={password}

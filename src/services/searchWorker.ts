@@ -44,7 +44,11 @@ self.onmessage = (event: MessageEvent) => {
   }
 
   if (type === 'SEARCH') {
-    const query = normalizeTerm(payload.query || '');
+    const rawQuery = String(payload.query || '').slice(0, 100);
+    const query = normalizeTerm(rawQuery)
+      .split(/\s+/)
+      .slice(0, 8)
+      .join(' ');
     if (!miniSearch || !query) {
       self.postMessage({ type: 'RESULTS', requestId, ids: null });
       return;

@@ -4,6 +4,7 @@ import { getCachedBook, saveBookOffline } from './offlineDb';
 const ARCHIVE_BASE = (import.meta.env.VITE_ARCHIVE_BASE_URL || '').replace(/\/$/, '');
 const GITHUB_BOOKS_CDN = 'https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books/main';
 const CF_ARCHIVE_CDN = 'https://archive.raritetbook.ru';
+const SAFE_SLUG_RE = /^[a-z0-9-]+$/i;
 
 let cachedCatalog: CatalogBookLite[] | null = null;
 let cachedCategories: CategoryMeta[] | null = null;
@@ -12,6 +13,16 @@ let catalogPromise: Promise<CatalogBookLite[]> | null = null;
 let workerInstance: Worker | null = null;
 let workerReqSeq = 0;
 const pendingSearch = new Map<number, (ids: string[] | null) => void>();
+
+async function fetchWithTimeout(url: string, timeoutMs = 9_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function ensureWorker(books: CatalogBookLite[]) {
   if (workerInstance || typeof Worker === 'undefined') return;
@@ -38,7 +49,7 @@ export async function loadCatalogLite(): Promise<CatalogBookLite[]> {
   if (cachedCatalog) return cachedCatalog;
   if (catalogPromise) return catalogPromise;
 
-  catalogPromise = fetch('/archive-meta/catalog-lite.json')
+  catalogPromise = fetchWithTimeout('/archive-meta/catalog-lite.json', 12_000)
     .then((r) => {
       if (!r.ok) throw new Error('Не удалось загрузить индекс каталога');
       return r.json();
@@ -48,6 +59,10 @@ export async function loadCatalogLite(): Promise<CatalogBookLite[]> {
       cachedCatalog = books;
       ensureWorker(books);
       return books;
+    })
+    .catch((err) => {
+      catalogPromise = null;
+      throw err;
     });
 
   return catalogPromise;
@@ -55,7 +70,7 @@ export async function loadCatalogLite(): Promise<CatalogBookLite[]> {
 
 export async function loadCategories(): Promise<CategoryMeta[]> {
   if (cachedCategories) return cachedCategories;
-  const resp = await fetch('/archive-meta/categories.json');
+  const resp = await fetchWithTimeout('/archive-meta/categories.json', 8_000);
   if (!resp.ok) return [];
   const data = await resp.json();
   cachedCategories = data;
@@ -63,7 +78,7 @@ export async function loadCategories(): Promise<CategoryMeta[]> {
 }
 
 export async function searchBooksInWorker(query: string): Promise<string[] | null> {
-  const clean = query.trim();
+  const clean = query.trim().slice(0, 100);
   if (!clean) return null;
   const books = await loadCatalogLite();
   ensureWorker(books);
@@ -89,6 +104,9 @@ export async function searchBooksInWorker(query: string): Promise<string[] | nul
 }
 
 export function getBookArchiveUrl(authorSlug: string, slug: string, file: 'book.json' | 'original.fb2'): string {
+  if (!SAFE_SLUG_RE.test(authorSlug) || !SAFE_SLUG_RE.test(slug)) {
+    throw new Error('Некорректный идентификатор книги.');
+  }
   if (import.meta.env.DEV && !ARCHIVE_BASE) {
     return `/archive/books/${authorSlug}/${slug}/${file}`;
   }
@@ -99,6 +117,10 @@ export function getBookArchiveUrl(authorSlug: string, slug: string, file: 'book.
 }
 
 export async function loadFullBook(slug: string): Promise<{ book: FullBookData; fromOfflineCache: boolean }> {
+  if (!SAFE_SLUG_RE.test(slug)) {
+    throw new Error('Некорректный адрес произведения.');
+  }
+
   // 1. Мгновенная проверка IndexedDB (PWA офлайн-чтение)
   const offline = await getCachedBook(slug);
   if (offline) {
@@ -107,11 +129,11 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
 
   const catalog = await loadCatalogLite();
   const entry = catalog.find((b) => b.slug === slug);
-  if (!entry) {
+  if (!entry || !SAFE_SLUG_RE.test(entry.aslug) || !SAFE_SLUG_RE.test(entry.slug)) {
     throw new Error('Произведение не найдено в каталоге библиотеки.');
   }
 
-  // Мульти-CDN без VPN в РФ: сначала GitHub Fastly CDN (или локальный dev), при сбое — резервный зеркальный архив
+  // Мульти-CDN без VPN в РФ: сначала GitHub Fastly CDN, при тайм-ауте (9с) — резервный архив Cloudflare
   const candidateUrls = import.meta.env.DEV
     ? [
         `/archive/books/${entry.aslug}/${entry.slug}/book.json`,
@@ -125,7 +147,7 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
   let lastErr: Error | null = null;
   for (const url of candidateUrls) {
     try {
-      const resp = await fetch(url);
+      const resp = await fetchWithTimeout(url, 9_000);
       if (resp.ok) {
         const fullBook: FullBookData = await resp.json();
         void saveBookOffline(fullBook);

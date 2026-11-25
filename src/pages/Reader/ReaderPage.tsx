@@ -20,6 +20,27 @@ import {
 } from '../../services/storageAndSync';
 import { QuoteCardModal } from '../../components/QuoteCardModal/QuoteCardModal';
 
+// Безопасный рендеринг инлайн-разметки (<em>, <strong>) без dangerouslySetInnerHTML (100% защита от DOM XSS)
+function renderSafeRichText(htmlStr: string): React.ReactNode[] {
+  const tokens = htmlStr.split(/(<\/?(?:em|strong)>)/g);
+  const out: React.ReactNode[] = [];
+  let italic = false;
+  let bold = false;
+  tokens.forEach((tok, idx) => {
+    if (tok === '<em>') italic = true;
+    else if (tok === '</em>') italic = false;
+    else if (tok === '<strong>') bold = true;
+    else if (tok === '</strong>') bold = false;
+    else if (tok) {
+      let node: React.ReactNode = tok;
+      if (italic) node = <em key={`i-${idx}`}>{node}</em>;
+      if (bold) node = <strong key={`b-${idx}`}>{node}</strong>;
+      out.push(<React.Fragment key={idx}>{node}</React.Fragment>);
+    }
+  });
+  return out;
+}
+
 export const ReaderPage: React.FC = () => {
   const { slug = '' } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -79,21 +100,30 @@ export const ReaderPage: React.FC = () => {
 
   // Начисление и дебаунс сохранения прогресса (без спама при каждом пикселе скролла!)
   const persistPosition = useCallback(
-    (chIndex: number, ratio: number, customBookmark = bookmark) => {
+    (chIndex: number, ratio: number, customBookmark = bookmark, immediate = false) => {
       if (!book) return;
       const totalCh = Math.max(1, book.chapters.length);
       const overall = Math.min(100, Math.max(1, Math.round(((chIndex + ratio) / totalCh) * 100)));
-      saveBookProgress({
-        slug: book.slug,
-        chapterIndex: chIndex,
-        scrollRatio: Number(ratio.toFixed(3)),
-        percent: overall,
-        bookmark: customBookmark,
-        updatedAt: Date.now(),
-      });
+      saveBookProgress(
+        {
+          slug: book.slug,
+          chapterIndex: chIndex,
+          scrollRatio: Number(ratio.toFixed(3)),
+          percent: overall,
+          bookmark: customBookmark,
+          updatedAt: Date.now(),
+        },
+        immediate
+      );
     },
     [book, bookmark]
   );
+
+  useEffect(() => {
+    const syncSettings = () => setSettings(getReaderSettings());
+    window.addEventListener('raritetbook:settings-updated', syncSettings);
+    return () => window.removeEventListener('raritetbook:settings-updated', syncSettings);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -144,7 +174,7 @@ export const ReaderPage: React.FC = () => {
     setScrollRatio(0);
     setTocOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    persistPosition(clamped, 0);
+    persistPosition(clamped, 0, bookmark, true);
   };
 
   const toggleBookmark = () => {
@@ -152,7 +182,7 @@ export const ReaderPage: React.FC = () => {
     const isSameChapter = bookmark && bookmark.chapterIndex === chapterIdx;
     if (isSameChapter) {
       setBookmark(null);
-      persistPosition(chapterIdx, scrollRatio, null);
+      persistPosition(chapterIdx, scrollRatio, null, true);
     } else {
       const ch = book.chapters[chapterIdx];
       const sampleText = ch?.content?.[0]?.text?.slice(0, 90) || ch?.title || '';
@@ -163,7 +193,7 @@ export const ReaderPage: React.FC = () => {
         createdAt: Date.now(),
       };
       setBookmark(nextBm);
-      persistPosition(chapterIdx, scrollRatio, nextBm);
+      persistPosition(chapterIdx, scrollRatio, nextBm, true);
     }
   };
 
@@ -378,11 +408,9 @@ export const ReaderPage: React.FC = () => {
           }
           if (blk.html) {
             return (
-              <p
-                key={i}
-                className="rb-reader-p"
-                dangerouslySetInnerHTML={{ __html: blk.html }}
-              />
+              <p key={i} className="rb-reader-p">
+                {renderSafeRichText(blk.html)}
+              </p>
             );
           }
           return (

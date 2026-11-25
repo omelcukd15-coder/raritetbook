@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import type { UserSession } from './types/library';
-import { getCurrentUser } from './services/storageAndSync';
+import { getCurrentUser, pullCloudProgress } from './services/storageAndSync';
 import { Header } from './components/Header/Header';
 import { Footer } from './components/Footer/Footer';
 import { AuthModal } from './components/AuthModal/AuthModal';
@@ -33,6 +33,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const syncAuth = () => setUser(getCurrentUser());
     window.addEventListener('raritetbook:auth-changed', syncAuth);
+    void pullCloudProgress(true);
     return () => window.removeEventListener('raritetbook:auth-changed', syncAuth);
   }, []);
 

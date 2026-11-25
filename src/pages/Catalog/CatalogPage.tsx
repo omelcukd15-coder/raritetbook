@@ -29,7 +29,13 @@ export const CatalogPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const progressMap = useMemo(() => getAllProgress(), []);
+  const [progressMap, setProgressMap] = useState(getAllProgress);
+
+  useEffect(() => {
+    const onProg = () => setProgressMap(getAllProgress());
+    window.addEventListener('raritetbook:progress-updated', onProg);
+    return () => window.removeEventListener('raritetbook:progress-updated', onProg);
+  }, []);
 
   useEffect(() => {
     document.title = 'Каталог произведений (10 000 книг) — RaritetBook.ru';
@@ -111,7 +117,8 @@ export const CatalogPage: React.FC = () => {
   }, [books, matchedIds, selectedCat, selectedLang, onlyOffline, offlineSlugs, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
-  const currentSlice = filteredBooks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const currentSlice = filteredBooks.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const updateCategory = (catId: string) => {
     setSelectedCat(catId);
@@ -123,7 +130,7 @@ export const CatalogPage: React.FC = () => {
   };
 
   const insertAe = () => {
-    setQuery((q) => q + 'ӕ');
+    setQuery((q) => (q.length < 100 ? q + 'ӕ' : q));
     inputRef.current?.focus();
   };
 
@@ -148,11 +155,12 @@ export const CatalogPage: React.FC = () => {
               <input
                 ref={inputRef}
                 type="search"
+                maxLength={100}
                 className="rb-search-box__input"
                 style={{ padding: '11px 14px', fontSize: '0.95rem' }}
                 placeholder="Название книги, автор или тема (например: Ломоносов, Кавказ, Дракула)..."
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => setQuery(e.target.value.slice(0, 100))}
               />
               <button
                 type="button"
@@ -286,23 +294,23 @@ export const CatalogPage: React.FC = () => {
                 <button
                   type="button"
                   className="rb-btn rb-btn--sm"
-                  disabled={page <= 1}
+                  disabled={safePage <= 1}
                   onClick={() => {
-                    setPage((p) => Math.max(1, p - 1));
+                    setPage(Math.max(1, safePage - 1));
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >
                   ← Назад
                 </button>
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', padding: '0 8px' }}>
-                  Страница <strong style={{ color: 'var(--text-main)' }}>{page}</strong> из {totalPages}
+                  Страница <strong style={{ color: 'var(--text-main)' }}>{safePage}</strong> из {totalPages}
                 </span>
                 <button
                   type="button"
                   className="rb-btn rb-btn--sm"
-                  disabled={page >= totalPages}
+                  disabled={safePage >= totalPages}
                   onClick={() => {
-                    setPage((p) => Math.min(totalPages, p + 1));
+                    setPage(Math.min(totalPages, safePage + 1));
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >

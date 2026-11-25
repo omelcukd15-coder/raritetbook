@@ -399,6 +399,8 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
               <input
                 type="email"
                 required
+                maxLength={120}
+                autoComplete="email"
                 className="rb-field"
                 placeholder="E-mail"
                 value={regEmail}
@@ -408,6 +410,8 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
                 type="password"
                 required
                 minLength={6}
+                maxLength={128}
+                autoComplete="new-password"
                 className="rb-field"
                 placeholder="Пароль"
                 value={regPass}

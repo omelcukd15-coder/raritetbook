@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Download, FileCode2, Lock, Upload } from 'lucide-react';
 import type { BookChapter, CategoryId, ContentBlock, FullBookData } from '../../types/library';
+import { API_BASE_URL } from '../../services/storageAndSync';
 import { BookCover } from '../../components/BookCover/BookCover';
+
+const MAX_XML_SECTION_DEPTH = 6;
+const MAX_CHAPTERS = 600;
+const MAX_BLOCKS_PER_CHAPTER = 5_000;
 
 function slugifyRu(input: string): string {
   const map: Record<string, string> = {
@@ -21,6 +26,14 @@ function slugifyRu(input: string): string {
 }
 
 function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, legalStatus: string): FullBookData {
+  // Защита от XXE / Billion Laughs DTD-экспансии
+  if (/<!(?:DOCTYPE|ENTITY)/i.test(xmlText)) {
+    throw new Error('Запрещённые DTD/ENTITY-декларации в XML-файле.');
+  }
+
+  const safeSourceUrl =
+    sourceUrl.trim() && /^https?:\/\//i.test(sourceUrl.trim()) ? sourceUrl.trim().slice(0, 300) : '';
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const parseErr = doc.querySelector('parsererror');
@@ -31,33 +44,35 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
   const txt = (sel: string, root: ParentNode = doc) =>
     root.querySelector(sel)?.textContent?.trim() || '';
 
-  const title = txt('title-info > book-title') || 'Без названия';
+  const title = (txt('title-info > book-title') || 'Без названия').slice(0, 240);
   const firstName = txt('title-info > author > first-name');
   const middleName = txt('title-info > author > middle-name');
   const lastName = txt('title-info > author > last-name');
-  const author = [firstName, middleName, lastName].filter(Boolean).join(' ') || 'Неизвестный автор';
+  const author = ([firstName, middleName, lastName].filter(Boolean).join(' ') || 'Неизвестный автор').slice(0, 160);
   const authorShort =
     firstName && lastName
-      ? `${firstName[0]}.${middleName ? ` ${middleName[0]}.` : ''} ${lastName}`
-      : author;
-  const language = txt('title-info > lang') || 'ru';
-  const writtenYear = txt('title-info > date') || '';
-  const editionYear = txt('publish-info > year') || writtenYear;
+      ? `${firstName[0]}.${middleName ? ` ${middleName[0]}.` : ''} ${lastName}`.slice(0, 100)
+      : author.slice(0, 100);
+  const language = txt('title-info > lang').slice(0, 8) || 'ru';
+  const writtenYear = txt('title-info > date').slice(0, 32) || '';
+  const editionYear = (txt('publish-info > year') || writtenYear).slice(0, 32);
   const annotation = txt('title-info > annotation') || `Издание произведения «${title}».`;
   const transFirst = txt('title-info > translator > first-name');
   const transLast = txt('title-info > translator > last-name');
   const transNick = txt('title-info > translator > nickname');
-  const translator = [transFirst, transLast].filter(Boolean).join(' ') || transNick || null;
+  const translator = ([transFirst, transLast].filter(Boolean).join(' ') || transNick || '').slice(0, 120) || null;
 
   const body = doc.querySelector('body');
   if (!body) throw new Error('В FB2 отсутствует секция <body>.');
 
-  const sections = Array.from(body.querySelectorAll(':scope > section'));
+  const sections = Array.from(body.querySelectorAll(':scope > section')).slice(0, MAX_CHAPTERS);
   const chapters: BookChapter[] = [];
 
-  const extractBlocks = (sec: Element): ContentBlock[] => {
+  const extractBlocks = (sec: Element, depth = 0): ContentBlock[] => {
+    if (depth > MAX_XML_SECTION_DEPTH) return [];
     const blocks: ContentBlock[] = [];
     for (const child of Array.from(sec.children)) {
+      if (blocks.length >= MAX_BLOCKS_PER_CHAPTER) break;
       const tag = child.localName.toLowerCase();
       if (tag === 'title') continue;
       if (tag === 'epigraph') {
@@ -67,11 +82,14 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
         const t = child.textContent?.trim();
         if (t) blocks.push({ type: 'subtitle', text: t });
       } else if (tag === 'poem') {
-        const stanzas = Array.from(child.querySelectorAll('stanza')).map((st) =>
-          Array.from(st.querySelectorAll('v'))
-            .map((v) => v.textContent?.trim() || '')
-            .filter(Boolean)
-        );
+        const stanzas = Array.from(child.querySelectorAll('stanza'))
+          .slice(0, 400)
+          .map((st) =>
+            Array.from(st.querySelectorAll('v'))
+              .slice(0, 120)
+              .map((v) => v.textContent?.trim() || '')
+              .filter(Boolean)
+          );
         if (stanzas.length) {
           blocks.push({
             type: 'poem',
@@ -85,24 +103,24 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
       } else if (tag === 'section') {
         const subTitle = child.querySelector(':scope > title')?.textContent?.trim();
         if (subTitle) blocks.push({ type: 'subtitle', text: subTitle });
-        blocks.push(...extractBlocks(child));
+        blocks.push(...extractBlocks(child, depth + 1));
       }
     }
-    return blocks;
+    return blocks.slice(0, MAX_BLOCKS_PER_CHAPTER);
   };
 
   if (sections.length > 0) {
     sections.forEach((sec, idx) => {
       const chTitle =
-        sec.querySelector(':scope > title')?.textContent?.replace(/\s+/g, ' ').trim() ||
+        sec.querySelector(':scope > title')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 180) ||
         `Глава ${idx + 1}`;
-      const content = extractBlocks(sec);
+      const content = extractBlocks(sec, 0);
       if (content.length > 0) {
         chapters.push({ id: `chapter-${idx + 1}`, title: chTitle, content });
       }
     });
   } else {
-    const content = extractBlocks(body);
+    const content = extractBlocks(body, 0);
     chapters.push({ id: 'chapter-1', title, content });
   }
 
@@ -132,9 +150,9 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
     writtenYear,
     editionYear,
     description: annotation.slice(0, 400),
-    historicalNote: `Импортировано из проверенного FB2-источника.`,
-    sourceUrl,
-    legalStatus,
+    historicalNote: 'Импортировано из проверенного FB2-источника.',
+    sourceUrl: safeSourceUrl,
+    legalStatus: legalStatus.slice(0, 240),
     downloadAllowed: true,
     fb2Url: `/archive/books/${authorSlug}/${slug}/original.fb2`,
     coverUrl: `/archive/books/${authorSlug}/${slug}/cover.webp`,
@@ -152,6 +170,8 @@ function parseFb2Xml(xmlText: string, category: CategoryId, sourceUrl: string, l
 export const AdminImportPage: React.FC = () => {
   const [unlocked, setUnlocked] = useState(false);
   const [adminKey, setAdminKey] = useState('');
+  const [authErr, setAuthErr] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const [category, setCategory] = useState<CategoryId>('russian-classics');
   const [sourceUrl, setSourceUrl] = useState('');
   const [legalStatus, setLegalStatus] = useState(
@@ -159,6 +179,30 @@ export const AdminImportPage: React.FC = () => {
   );
   const [parsedBook, setParsedBook] = useState<FullBookData | null>(null);
   const [error, setError] = useState('');
+
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthErr('');
+    setVerifying(true);
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/admin/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: adminKey.trim() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && data.ok) {
+        setUnlocked(true);
+        setAdminKey('');
+      } else {
+        setAuthErr(data.error || 'Неверный ключ администратора.');
+      }
+    } catch {
+      setAuthErr('Не удалось проверить ключ на сервере.');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -183,7 +227,7 @@ export const AdminImportPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `book.json`;
+    a.download = 'book.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -199,24 +243,23 @@ export const AdminImportPage: React.FC = () => {
             </h1>
           </div>
           <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>
-            Инструмент проверки прав, конвертации FB2 → `book.json` и подготовки пакетов для Cloudflare R2. Секретные ключи R2 хранятся только в Cloudflare Secrets.
+            Инструмент проверки прав и конвертации FB2 → <code>book.json</code>. Ключ проверяется на защищённом сервере Cloudflare с защитой от перебора.
           </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (adminKey.trim().length >= 4) setUnlocked(true);
-            }}
-          >
+          <form onSubmit={handleUnlock}>
             <input
               type="password"
+              maxLength={128}
               className="rb-field"
-              placeholder="Ключ доступа администратора"
+              placeholder="Серверный ключ администратора"
               value={adminKey}
               onChange={(e) => setAdminKey(e.target.value)}
               required
             />
-            <button type="submit" className="rb-btn rb-btn--gold" style={{ width: '100%' }}>
-              Открыть консоль импорта
+            {authErr && (
+              <div style={{ color: '#f28b6d', fontSize: '0.84rem', marginBottom: 10 }}>{authErr}</div>
+            )}
+            <button type="submit" disabled={verifying} className="rb-btn rb-btn--gold" style={{ width: '100%' }}>
+              {verifying ? 'Проверка ключа...' : 'Открыть консоль импорта'}
             </button>
           </form>
         </div>
@@ -227,7 +270,7 @@ export const AdminImportPage: React.FC = () => {
   return (
     <main className="rb-container" style={{ paddingTop: 28, paddingBottom: 48 }}>
       <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.2rem', marginTop: 0 }}>
-        Конвейер импорта FB2 → Архив R2
+        Конвейер импорта FB2 → Архив
       </h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 22 }}>
@@ -255,6 +298,7 @@ export const AdminImportPage: React.FC = () => {
           </label>
           <input
             type="url"
+            maxLength={300}
             className="rb-field"
             placeholder="https://..."
             value={sourceUrl}
@@ -266,6 +310,7 @@ export const AdminImportPage: React.FC = () => {
           </label>
           <input
             type="text"
+            maxLength={240}
             className="rb-field"
             value={legalStatus}
             onChange={(e) => setLegalStatus(e.target.value)}
@@ -283,7 +328,7 @@ export const AdminImportPage: React.FC = () => {
           <h2 style={{ fontFamily: 'var(--font-heading)', marginTop: 0 }}>2. Предпросмотр карточки и JSON</h2>
           {!parsedBook ? (
             <p style={{ color: 'var(--text-muted)' }}>
-              Загрузите `.fb2`, чтобы проверить XML-структуру, извлечённые главы, стихи, эпиграфы и обложку.
+              Загрузите <code>.fb2</code>, чтобы проверить XML-структуру, извлечённые главы, стихи, эпиграфы и обложку.
             </p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 16 }}>
@@ -306,14 +351,14 @@ export const AdminImportPage: React.FC = () => {
                   {parsedBook.author} ({parsedBook.language})
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 14 }}>
-                  Путь R2: <code>archive/books/{parsedBook.authorSlug}/{parsedBook.slug}/</code>
+                  Путь архива: <code>books/{parsedBook.authorSlug}/{parsedBook.slug}/</code>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" className="rb-btn rb-btn--gold rb-btn--sm" onClick={downloadJson}>
                     <Download size={15} /> Скачать book.json
                   </button>
                   <span className="rb-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <FileCode2 size={14} /> Готово к выгрузке в R2
+                    <FileCode2 size={14} /> Готово к выгрузке
                   </span>
                 </div>
               </div>

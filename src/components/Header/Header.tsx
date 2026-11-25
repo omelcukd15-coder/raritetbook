@@ -24,13 +24,13 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const q = query.trim();
+    const q = query.trim().slice(0, 100);
     navigate(q ? `/catalog?q=${encodeURIComponent(q)}` : '/catalog');
     setDrawerOpen(false);
   };
 
   const insertOssetianAe = (isMobile = false) => {
-    setQuery((prev) => prev + 'ӕ');
+    setQuery((prev) => (prev.length < 100 ? prev + 'ӕ' : prev));
     const target = isMobile ? mobileInputRef.current : inputRef.current;
     target?.focus();
   };
@@ -81,10 +81,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
               <input
                 ref={inputRef}
                 type="search"
+                maxLength={100}
                 className="rb-search-box__input"
                 placeholder="Поиск по книгам..."
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => setQuery(e.target.value.slice(0, 100))}
                 aria-label="Поиск книг по названию или автору"
               />
               <button
@@ -119,10 +120,11 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
             <input
               ref={mobileInputRef}
               type="search"
+              maxLength={100}
               className="rb-search-box__input"
               placeholder="Поиск по 10 000 книгам..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => setQuery(e.target.value.slice(0, 100))}
             />
             <button
               type="button"
@@ -157,9 +159,6 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
             </Link>
             <Link to="/author" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
               Об авторе — Денис Омельчук
-            </Link>
-            <Link to="/admin" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
-              Инструмент импорта FB2
             </Link>
           </div>
         )}

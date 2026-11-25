@@ -69,19 +69,15 @@ export const BookPage: React.FC = () => {
 
   const fb2DownloadHref = getBookArchiveUrl(book.authorSlug, book.slug, 'original.fb2');
 
-  const handleDownloadFb2 = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleDownloadFb2 = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
-    try {
-      const head = await fetch(fb2DownloadHref, { method: 'HEAD' });
-      if (head.ok && !(head.headers.get('content-type') || '').includes('text/html')) {
-        window.location.href = fb2DownloadHref;
-        return;
-      }
-    } catch {
-      // Генерируем валидный FB2 локально из уже загруженного полного тома
-    }
     const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      String(s || '')
+        .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     const parts = book.author.split(/\s+/).filter(Boolean);
     const fn = parts[0] || book.author;
     const ln = parts.length > 1 ? parts[parts.length - 1] : '';
@@ -146,11 +142,14 @@ ${sections}
     isAccessibleForFree: true,
   };
 
+  const safeJsonLd = JSON.stringify(schemaOrgJson).replace(/</g, '\\u003c');
+  const isSafeSourceUrl = Boolean(book.sourceUrl && /^https?:\/\//i.test(book.sourceUrl));
+
   return (
     <main className="rb-container">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaOrgJson) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd }}
       />
 
       <div style={{ paddingTop: 18 }}>
@@ -269,7 +268,7 @@ ${sections}
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Scale size={15} color="var(--gold)" /> {book.legalStatus}
               </span>
-              {book.sourceUrl && (
+              {isSafeSourceUrl && (
                 <a
                   href={book.sourceUrl}
                   target="_blank"
