@@ -1,4 +1,4 @@
-const CACHE_NAME = 'raritetbook-shell-v2';
+const CACHE_NAME = 'raritetbook-shell-v3';
 const SHELL_ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -19,7 +19,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.pathname.startsWith('/api/')) return;
+  // Никогда не перехватываем внешние API и CDN
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
   if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/archive-meta/')) {
     event.respondWith(
