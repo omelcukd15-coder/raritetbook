@@ -6,3 +6,4 @@ archive_deploy/
 .env
 .env.local
 *.log
+press-kit/

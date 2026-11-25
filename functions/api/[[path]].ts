@@ -14,13 +14,23 @@ const MAX_PROGRESS_BYTES = 10_240; // Строгий лимит 10 КБ на п�
 const SESSION_TTL_SEC = 60 * 60 * 24 * 90; // 90 дней сессии
 const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 
-const ALLOWED_ORIGINS = new Set([
+const STATIC_ALLOWED_ORIGINS = new Set([
   'https://raritetbook.ru',
   'https://www.raritetbook.ru',
   'https://api.raritetbook.ru',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
+  'https://omelcukd15-coder.github.io',
+  'https://raritetbook-ru.pages.dev',
 ]);
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  if (STATIC_ALLOWED_ORIGINS.has(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+\.raritetbook-ru\.pages\.dev$/i.test(origin)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+  return false;
+}
 
 // Защита от перебора паролей (Per-IP Sliding Window в памяти изолята)
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -217,7 +227,7 @@ function buildCorsHeaders(origin: string | null): Record<string, string> {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     Vary: 'Origin',
   };
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
+  if (isAllowedOrigin(origin) && origin) {
     headers['Access-Control-Allow-Origin'] = origin;
     headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
     headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization';
@@ -251,14 +261,14 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
   const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
 
   if (request.method === 'OPTIONS') {
-    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    if (origin && !isAllowedOrigin(origin)) {
       return new Response(null, { status: 403, headers: buildCorsHeaders(null) });
     }
     return new Response(null, { status: 204, headers: buildCorsHeaders(origin) });
   }
 
   // Строгая проверка доверенного Origin для всех мутирующих запросов
-  if (request.method === 'POST' && origin && !ALLOWED_ORIGINS.has(origin) && origin !== url.origin) {
+  if (request.method === 'POST' && origin && !isAllowedOrigin(origin) && origin !== url.origin) {
     return jsonResp({ error: 'CSRF check failed' }, 403, origin);
   }
 
@@ -517,20 +527,24 @@ export const onRequest = async (context: { request: Request; env: Env }): Promis
     if (!checkRateLimit(clientIp, 'sync', 60, 60_000)) {
       return jsonResp({ error: 'Rate limit exceeded' }, 429, origin);
     }
-    const email = await extractSessionEmail(request, env.SESSION_SECRET);
-    if (!email) return jsonResp({ error: 'Unauthorized' }, 401, origin);
 
     const rawText = await request.text();
     if (rawText.length > MAX_PROGRESS_BYTES * 2) {
       return jsonResp({ error: 'Progress payload exceeds limit' }, 413, origin);
     }
 
-    let parsed: unknown;
+    let parsed: any;
     try {
       parsed = JSON.parse(rawText);
     } catch {
       return jsonResp({ error: 'Invalid JSON' }, 400, origin);
     }
+
+    let email = await extractSessionEmail(request, env.SESSION_SECRET);
+    if (!email && parsed && typeof parsed._token === 'string') {
+      email = await verifyToken(parsed._token, env.SESSION_SECRET);
+    }
+    if (!email) return jsonResp({ error: 'Unauthorized' }, 401, origin);
 
     const sanitized = sanitizeProgressPayload(parsed);
     if (!sanitized) {

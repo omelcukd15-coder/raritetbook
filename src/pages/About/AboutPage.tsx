@@ -41,7 +41,7 @@ export const AboutPage: React.FC<{ section?: 'about' | 'privacy' | 'terms' }> = 
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 26 }}>
             <Link to="/catalog" className="rb-btn rb-btn--gold">
-              <BookOpen size={17} /> Перейти в каталог (10 000 книг)
+              <BookOpen size={17} /> Перейти в каталог (15 000 книг)
             </Link>
             <Link to="/author" className="rb-btn">Об авторе проекта</Link>
           </div>

@@ -109,7 +109,7 @@ export const AuthorPage: React.FC = () => {
             </a>
 
             <Link to="/catalog" className="rb-btn">
-              <BookOpen size={17} /> Открыть фонд (10 000 книг)
+              <BookOpen size={17} /> Открыть фонд (15 000 книг)
             </Link>
           </div>
         </div>
@@ -153,7 +153,7 @@ export const AuthorPage: React.FC = () => {
             Контакты и пресс-справка для СМИ
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 0 12px' }}>
-            <strong style={{ color: 'var(--text-main)' }}>Информационный повод:</strong> молодой разработчик из Владикавказа Денис Омельчук создал бесплатную цифровую библиотеку из 10 000 старинных, научных и классических книг <em>RaritetBook.ru</em>, доступную читателям по всей России без рекламы и регистрации.
+            <strong style={{ color: 'var(--text-main)' }}>Информационный повод:</strong> молодой разработчик из Владикавказа Денис Омельчук создал бесплатную цифровую библиотеку из 15 000 старинных, научных и классических книг <em>RaritetBook.ru</em>, доступную читателям по всей России без рекламы и регистрации.
           </p>
           <div style={{ fontSize: '0.86rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div>• Телефон / WhatsApp: <a href="https://wa.me/79888764310" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-bright)' }}>+7 (988) 876-43-10</a></div>

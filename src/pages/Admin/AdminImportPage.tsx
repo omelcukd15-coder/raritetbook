@@ -227,7 +227,7 @@ export const AdminImportPage: React.FC = () => {
       const [statsResp, mf] = await Promise.all([
         fetch(`${API_BASE_URL}/api/admin/stats`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
           body: JSON.stringify({ key: keyToUse }),
         }),
         loadCatalogManifest().catch(() => null),
@@ -260,7 +260,7 @@ export const AdminImportPage: React.FC = () => {
     try {
       const resp = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: JSON.stringify({ key: trimmed }),
       });
       const data = await resp.json().catch(() => ({}));

@@ -23,17 +23,26 @@ let dirtySync = false;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPullAt = 0;
 
-async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 10_000): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    return await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      signal: ctrl.signal,
-    });
-  } finally {
-    clearTimeout(timer);
+async function apiFetch(path: string, init: RequestInit = {}, timeoutMs = 12_000, retries = 1): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        ...init,
+        signal: ctrl.signal,
+      });
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw lastErr;
 }
 
 export function getAllProgress(): Record<string, BookReadingProgress> {
@@ -187,7 +196,7 @@ export async function registerAccount(email: string, password: string): Promise<
   try {
     resp = await apiFetch('/api/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({
         email: cleanEmail,
         password,
@@ -195,7 +204,7 @@ export async function registerAccount(email: string, password: string): Promise<
       }),
     });
   } catch {
-    throw new Error('Не удалось связаться с облаком синхронизации. Проверьте подключение к интернету.');
+    throw new Error('Не удалось связаться с облаком синхронизации. Проверьте интернет или отключите блокировщик для api.raritetbook.ru.');
   }
 
   const data = await resp.json().catch(() => ({}));
@@ -227,11 +236,11 @@ export async function loginAccount(email: string, password: string): Promise<Use
   try {
     resp = await apiFetch('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({ email: cleanEmail, password }),
     });
   } catch {
-    throw new Error('Не удалось связаться с облаком синхронизации. Проверьте подключение к интернету.');
+    throw new Error('Не удалось связаться с облаком синхронизации. Проверьте интернет или отключите блокировщик для api.raritetbook.ru.');
   }
 
   const data = await resp.json().catch(() => ({}));
@@ -352,7 +361,7 @@ export async function flushCloudSync(): Promise<void> {
     return;
   }
 
-  const payloadObj = { books: getAllProgress(), settings: getReaderSettings() };
+  const payloadObj = { books: getAllProgress(), settings: getReaderSettings(), _token: user.token };
   const serialized = JSON.stringify(payloadObj);
   if (serialized.length > 10_240) return;
 
@@ -362,8 +371,7 @@ export async function flushCloudSync(): Promise<void> {
     const resp = await fetch(`${API_BASE_URL}/api/progress/sync`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${user.token}`,
+        'Content-Type': 'text/plain;charset=UTF-8',
       },
       keepalive: true,
       body: serialized,
