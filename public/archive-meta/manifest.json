@@ -1,9 +1,9 @@
 {
-  "version": "4.1.16050",
-  "generatedAt": "2026-11-26T16:33:58Z",
-  "totalBooks": 16050,
+  "version": "4.1.16092",
+  "generatedAt": "2026-11-26T17:06:00Z",
+  "totalBooks": 16092,
   "ossetianBooks": 1051,
-  "totalWords": 82828166,
+  "totalWords": 83756637,
   "chunkSize": 5000,
   "maxCapacity": 100000,
   "catMap": [

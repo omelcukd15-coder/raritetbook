@@ -13,8 +13,8 @@ import {
   Type,
   Zap,
 } from 'lucide-react';
-import type { BookChapter, CatalogBookLite, CategoryMeta, HomeFeaturedPayload, UserSession } from '../../types/library';
-import { loadCatalogLite, loadCategories, loadHomeFeatured } from '../../services/catalogService';
+import type { BookChapter, CatalogBookLite, CategoryMeta, HomeFeaturedPayload, SchoolCurriculumPayload, UserSession } from '../../types/library';
+import { loadCatalogLite, loadCategories, loadHomeFeatured, loadSchoolCurriculum } from '../../services/catalogService';
 import { getAllProgress, registerAccount } from '../../services/storageAndSync';
 import { BookCard } from '../../components/BookCard/BookCard';
 
@@ -33,6 +33,7 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ user }) => {
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
   const [featured, setFeatured] = useState<HomeFeaturedPayload | null>(null);
+  const [schoolData, setSchoolData] = useState<SchoolCurriculumPayload | null>(null);
   const [extraBooks, setExtraBooks] = useState<CatalogBookLite[]>([]);
   const [preview, setPreview] = useState<HeroPreviewData | null>(null);
   const [previewChIdx, setPreviewChIdx] = useState(0); // Глава 1 поэмы «Мцыри»
@@ -50,6 +51,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
     document.title = 'RaritetBook.ru — Старинные книги. Вечные знания | Открытая цифровая библиотека';
     void loadCategories().then(setCategories);
     void loadHomeFeatured().then(setFeatured);
+    void loadSchoolCurriculum().then(setSchoolData);
     // Полный шардированный каталог догружаем только если у читателя есть начатые книги для полки «Продолжить чтение»
     if (Object.keys(getAllProgress()).length > 0) {
       void loadCatalogLite().then(setExtraBooks);
@@ -133,6 +135,9 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               <Link to="/catalog" className="rb-btn rb-btn--gold">
                 <BookOpen size={18} /> Перейти к каталогу →
+              </Link>
+              <Link to="/school" className="rb-btn rb-btn--sm" style={{ borderColor: 'var(--gold)' }}>
+                Школа 5–11 на лето
               </Link>
               <Link to="/catalog?lang=os" className="rb-btn rb-btn--sm" style={{ borderColor: 'var(--gold)' }}>
                 ӕ Ирон чингуытӕ ({ossetianTotal.toLocaleString('ru-RU')})
@@ -308,6 +313,49 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
           </div>
         </section>
       )}
+
+      {/* СПЕЦИАЛЬНАЯ ПОЛКА: ШКОЛЬНАЯ ПРОГРАММА НА ЛЕТО И ПО ВСЕМ ПРЕДМЕТАМ (5–11 КЛАСС) */}
+      <section className="rb-shelf">
+        <div className="rb-shelf__head" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h2 className="rb-shelf__title" style={{ marginBottom: 4 }}>
+              Школьная программа на лето и по всем предметам (5–11 класс)
+            </h2>
+            <div style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+              Литература, история, математика, физика, логика, география и родная литература — без поисков по разным сайтам
+            </div>
+          </div>
+          <Link to="/school" className="rb-shelf__more">
+            Открыть всю программу ({schoolData?.totalItems || 250}+ книг) →
+          </Link>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {[5, 6, 7, 8, 9, 10, 11].map((g) => (
+            <Link key={g} to={`/school?grade=${g}`} className="rb-chip" style={{ textDecoration: 'none' }}>
+              {g === 9 ? '9 класс (ОГЭ)' : g === 11 ? '11 класс (ЕГЭ)' : `${g} класс`}
+            </Link>
+          ))}
+          <Link to="/school?subj=math-phys" className="rb-chip" style={{ textDecoration: 'none' }}>
+            Математика и физика
+          </Link>
+          <Link to="/school?subj=history" className="rb-chip" style={{ textDecoration: 'none' }}>
+            История
+          </Link>
+        </div>
+
+        {schoolData && schoolData.items.length > 0 && (
+          <div className="rb-books-grid">
+            {schoolData.items.slice(0, 6).map(({ book }) => (
+              <BookCard
+                key={book.slug}
+                book={book}
+                progressPercent={progressMap[book.slug]?.percent}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* СПЕЦИАЛЬНАЯ ПОЛКА: ИРОН ЛИТЕРАТУРӔ — КНИГИ НА ОСЕТИНСКОМ ЯЗЫКЕ (Ӕ) */}
       {ossetianShowcase.length > 0 && (

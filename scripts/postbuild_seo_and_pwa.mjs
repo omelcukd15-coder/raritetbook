@@ -85,6 +85,13 @@ function buildSeoHtml({ title, description, canonicalPath, ogType = 'website', j
 // 2. Статические маршруты (HTTP 200 OK для поисковых роботов)
 const staticPages = [
   {
+    route: 'school',
+    title: 'Школьная программа 5–11 класс: список литературы на лето и учебники по всем предметам — RaritetBook.ru',
+    description:
+      'Полная школьная библиотека 5–11 класс бесплатно онлайн и в FB2: список чтения на лето, подготовка к ОГЭ и ЕГЭ, литература, история, математика, физика, логика, география и осетинская литература.',
+    body: '<main style="max-width:960px;margin:0 auto;padding:32px 20px"><h1>Школьная программа 5–11 класс и список чтения на лето</h1><p>Все обязательные произведения ФГОС и старинные учебники по литературе, истории, математике, физике, логике, биологии, географии и русскому языку бесплатно онлайн и офлайн.</p></main>',
+  },
+  {
     route: 'catalog',
     title: 'Каталог старинных и классических книг (16 050 томов) — RaritetBook.ru',
     description:
@@ -200,7 +207,23 @@ if (fs.existsSync(CATALOG_PATH)) {
   const sitemapFiles = [];
   const today = new Date().toISOString().slice(0, 10);
 
-  const coreUrls = ['/', '/catalog', '/catalog?lang=os', '/about', '/author', '/privacy', '/terms'];
+  const coreUrls = [
+    '/',
+    '/school',
+    '/school?grade=5',
+    '/school?grade=6',
+    '/school?grade=7',
+    '/school?grade=8',
+    '/school?grade=9',
+    '/school?grade=10',
+    '/school?grade=11',
+    '/catalog',
+    '/catalog?lang=os',
+    '/about',
+    '/author',
+    '/privacy',
+    '/terms',
+  ];
   const allLocs = [
     ...coreUrls.map((u) => `https://raritetbook.ru${u}`),
     ...books.map((b) => `https://raritetbook.ru/book/${b.slug}`),

@@ -55,6 +55,22 @@ export interface HomeFeaturedPayload {
   recent: CatalogBookLite[];
 }
 
+export interface SchoolCurriculumItem {
+  grades: number[];
+  subject: string;
+  summer: boolean;
+  note: string;
+  book: CatalogBookLite;
+}
+
+export interface SchoolCurriculumPayload {
+  version: string;
+  totalItems: number;
+  grades: number[];
+  subjects: { id: string; title: string }[];
+  items: SchoolCurriculumItem[];
+}
+
 export interface AdminLiveStats {
   totalUsers: number;
   newUsers24h: number;

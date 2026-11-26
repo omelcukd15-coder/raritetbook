@@ -5,6 +5,7 @@ import type {
   CategoryMeta,
   FullBookData,
   HomeFeaturedPayload,
+  SchoolCurriculumPayload,
 } from '../types/library';
 import { getCachedBook, listOfflineBooksLite, saveBookOffline } from './offlineDb';
 
@@ -19,9 +20,11 @@ const SAFE_SLUG_RE = /^[a-z0-9-]+$/i;
 const LS_MANIFEST_KEY = 'raritetbook_cached_manifest_v1';
 const LS_HOME_KEY = 'raritetbook_cached_home_v1';
 const LS_CATS_KEY = 'raritetbook_cached_cats_v1';
+const LS_SCHOOL_KEY = 'raritetbook_cached_school_v1';
 
 let cachedManifest: CatalogManifest | null = null;
 let cachedHomeFeatured: HomeFeaturedPayload | null = null;
+let cachedSchool: SchoolCurriculumPayload | null = null;
 let cachedCatalog: CatalogBookLite[] | null = null;
 let cachedCategories: CategoryMeta[] | null = null;
 
@@ -340,6 +343,25 @@ export async function loadCategories(): Promise<CategoryMeta[]> {
       return fallback;
     }
     return [];
+  }
+}
+
+export async function loadSchoolCurriculum(): Promise<SchoolCurriculumPayload> {
+  if (cachedSchool) return cachedSchool;
+  try {
+    const resp = await fetchWithTimeout('/archive-meta/school-curriculum.json', 10_000);
+    if (!resp.ok) throw new Error('school http error');
+    const data: SchoolCurriculumPayload = await resp.json();
+    cachedSchool = data;
+    saveLsJson(LS_SCHOOL_KEY, data);
+    return data;
+  } catch {
+    const fallback = readLsJson<SchoolCurriculumPayload>(LS_SCHOOL_KEY);
+    if (fallback) {
+      cachedSchool = fallback;
+      return fallback;
+    }
+    return { version: 'offline', totalItems: 0, grades: [5, 6, 7, 8, 9, 10, 11], subjects: [], items: [] };
   }
 }
 

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BookOpen, Feather, Home, Library, Menu, Search, User, X } from 'lucide-react';
+import { BookOpen, Feather, GraduationCap, Home, Library, Menu, User, X } from 'lucide-react';
 import type { UserSession } from '../../types/library';
 import { getAllProgress } from '../../services/storageAndSync';
 
@@ -61,6 +61,12 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
               className={`rb-nav__link ${isActive('/catalog') ? 'rb-nav__link--active' : ''}`}
             >
               <Library size={16} /> Каталог
+            </Link>
+            <Link
+              to="/school"
+              className={`rb-nav__link ${isActive('/school') ? 'rb-nav__link--active' : ''}`}
+            >
+              <GraduationCap size={16} /> Школа 5–11
             </Link>
             <Link
               to="/about"
@@ -153,6 +159,9 @@ export const Header: React.FC<HeaderProps> = ({ user, onOpenAuth }) => {
             </Link>
             <Link to="/catalog" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
               Каталог библиотеки
+            </Link>
+            <Link to="/school" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
+              Школьная программа и лето (5–11 класс)
             </Link>
             <Link to="/about" onClick={() => setDrawerOpen(false)} className="rb-nav__link">
               О проекте и правовой статус

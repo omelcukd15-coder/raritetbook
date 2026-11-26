@@ -1,13 +1,15 @@
-const CACHE_NAME = 'raritetbook-pwa-v8';
+const CACHE_NAME = 'raritetbook-pwa-v9';
 
 // Список всех JS/CSS/мета-файлов оболочки инжектируется автоматически при сборке postbuild-скриптом!
 const SHELL_ASSETS = [
   '/',
   '/index.html',
+  '/school',
   '/favicon.svg',
   '/manifest.webmanifest',
   '/archive-meta/categories.json',
   '/archive-meta/home-featured.json',
+  '/archive-meta/school-curriculum.json',
   '/archive-meta/manifest.json',
   '/archive-meta/hero-preview.json',
   '/archive-meta/shards/idx-0.json',
