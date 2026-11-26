@@ -140,10 +140,48 @@ for (const sp of staticPages) {
   );
 }
 
-// 3. Пререндер SEO-страниц книг (HTTP 200 OK + Schema.org Book + семантический HTML) + Полный Sitemap на 16 050 URL
-if (fs.existsSync(CATALOG_PATH)) {
-  const catData = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
-  const books = catData.books || [];
+// 3. Пререндер SEO-страниц книг (HTTP 200 OK + Schema.org Book + семантический HTML) + Полный Sitemap на 26 092+ URL
+// Работает как локально (из archive/catalog/catalog.json), так и в GitHub Actions CI (из public/archive-meta/shards/idx-*.json)!
+function loadAllBooksForSeo() {
+  if (fs.existsSync(CATALOG_PATH)) {
+    const catData = JSON.parse(fs.readFileSync(CATALOG_PATH, 'utf8'));
+    if (Array.isArray(catData.books) && catData.books.length > 0) {
+      return catData.books;
+    }
+  }
+  const manifestPath = path.join(ROOT, 'public', 'archive-meta', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return [];
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const langMap = manifest.langMap || ['ru', 'os'];
+  const out = [];
+  for (const chunkName of manifest.chunks || []) {
+    const chunkPath = path.join(ROOT, 'public', 'archive-meta', 'shards', chunkName);
+    if (!fs.existsSync(chunkPath)) continue;
+    const rows = JSON.parse(fs.readFileSync(chunkPath, 'utf8'));
+    for (const row of rows) {
+      out.push({
+        slug: String(row[0] || ''),
+        title: String(row[1] || ''),
+        authorShort: String(row[2] || ''),
+        author: String(row[3] || ''),
+        authorSlug: String(row[4] || 'author'),
+        language: langMap[Number(row[6]) || 0] || 'ru',
+        editionYear: String(row[7] || ''),
+        wordsCount: Number(row[8]) || 0,
+        rank: Number(row[10]) || 0,
+        chaptersCount: Number(row[12]) || 1,
+        description: String(row[13] || ''),
+        legalStatus: (langMap[Number(row[6]) || 0] === 'os' && String(row[4]) === 'iron-arkhiv')
+          ? 'Creative Commons CC BY-SA 4.0 (ст. 1286.1 ГК РФ)'
+          : 'Общественное достояние (ст. 1281, 1259 ГК РФ)',
+      });
+    }
+  }
+  return out;
+}
+
+const books = loadAllBooksForSeo();
+if (books.length > 0) {
 
   // Выбираем топ-2000 самых востребованных книг (вся школьная и флагманская классика + весь осетинский литературный фонд + крупные романы)
   const prioritized = [...books].sort((a, b) => {
