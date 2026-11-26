@@ -88,6 +88,8 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
     .filter(Boolean) as { book: CatalogBookLite; percent: number }[];
 
   const flagshipBooks = (featured?.flagships || []).slice(0, 12);
+  const ossetianShowcase = (featured?.ossetian || []).slice(0, 6);
+  const ossetianTotal = featured?.ossetianBooks || 1050;
   const scienceAndTextbooks = (featured?.science || []).slice(0, 6);
   const recentAdditions = (featured?.recent || []).slice(0, 6);
   const totalBooksCount = featured?.totalBooks || categories.reduce((s, c) => s + c.booksCount, 0) || 15000;
@@ -131,6 +133,9 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               <Link to="/catalog" className="rb-btn rb-btn--gold">
                 <BookOpen size={18} /> Перейти к каталогу →
+              </Link>
+              <Link to="/catalog?lang=os" className="rb-btn rb-btn--sm" style={{ borderColor: 'var(--gold)' }}>
+                ӕ Ирон чингуытӕ ({ossetianTotal.toLocaleString('ru-RU')})
               </Link>
               <button
                 type="button"
@@ -299,6 +304,27 @@ export const HomePage: React.FC<HomePageProps> = ({ user }) => {
           <div className="rb-books-grid">
             {continueBooks.slice(0, 6).map(({ book, percent }) => (
               <BookCard key={book.slug} book={book} progressPercent={percent} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* СПЕЦИАЛЬНАЯ ПОЛКА: ИРОН ЛИТЕРАТУРӔ — КНИГИ НА ОСЕТИНСКОМ ЯЗЫКЕ (Ӕ) */}
+      {ossetianShowcase.length > 0 && (
+        <section className="rb-shelf">
+          <div className="rb-shelf__head">
+            <h2 className="rb-shelf__title">Ирон чингуытӕ — На осетинском языке (ӕ)</h2>
+            <Link to="/catalog?lang=os" className="rb-shelf__more">
+              Весь осетинский фонд ({ossetianTotal.toLocaleString('ru-RU')} изд.) →
+            </Link>
+          </div>
+          <div className="rb-books-grid">
+            {ossetianShowcase.map((book) => (
+              <BookCard
+                key={book.slug}
+                book={book}
+                progressPercent={progressMap[book.slug]?.percent}
+              />
             ))}
           </div>
         </section>

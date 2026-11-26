@@ -5,7 +5,7 @@
     "title": "История России",
     "subtitle": "Летописи, исторические труды, Российская империя, мемуары и архивные памятники",
     "image": "/assets/images/categories/history.webp",
-    "booksCount": 521
+    "booksCount": 660
   },
   {
     "id": "russian-classics",
@@ -18,10 +18,10 @@
   {
     "id": "caucasus",
     "slug": "caucasus",
-    "title": "Кавказ и народы России",
-    "subtitle": "Исторические хроники, этнография, предания и литература о Кавказе",
+    "title": "Кавказ и Осетия",
+    "subtitle": "Осетинская классика в оригинале (ӕ), Нартский эпос, хроники и этнография Кавказа",
     "image": "/assets/images/categories/caucasus.webp",
-    "booksCount": 389
+    "booksCount": 1291
   },
   {
     "id": "foreign-classics",
@@ -37,7 +37,7 @@
     "title": "Наука и философия",
     "subtitle": "Труды русских и мировых учёных, философия, география, психология и естествознание",
     "image": "/assets/images/categories/science.webp",
-    "booksCount": 2306
+    "booksCount": 2315
   },
   {
     "id": "rare-editions",

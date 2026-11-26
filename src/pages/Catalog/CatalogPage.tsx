@@ -17,13 +17,14 @@ export const CatalogPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQ = searchParams.get('q') || '';
   const initialCat = searchParams.get('cat') || 'all';
+  const initialLang = (searchParams.get('lang') as 'all' | 'ru' | 'os') || 'all';
   const initialSort = searchParams.get('sort') || 'featured';
 
   const [books, setBooks] = useState<CatalogBookLite[]>([]);
   const [categories, setCategories] = useState<CategoryMeta[]>([]);
   const [query, setQuery] = useState(initialQ);
   const [selectedCat, setSelectedCat] = useState(initialCat);
-  const [selectedLang, setSelectedLang] = useState<'all' | 'ru' | 'os'>('all');
+  const [selectedLang, setSelectedLang] = useState<'all' | 'ru' | 'os'>(initialLang);
   const [onlyOffline, setOnlyOffline] = useState(false);
   const [sortBy, setSortBy] = useState(initialSort);
   const [page, setPage] = useState(1);
@@ -63,8 +64,10 @@ export const CatalogPage: React.FC = () => {
   useEffect(() => {
     const urlQ = searchParams.get('q') || '';
     const urlCat = searchParams.get('cat') || 'all';
+    const urlLang = (searchParams.get('lang') as 'all' | 'ru' | 'os') || 'all';
     setQuery(urlQ);
     setSelectedCat(urlCat);
+    setSelectedLang(urlLang);
     setPage(1);
   }, [searchParams]);
 
@@ -208,8 +211,13 @@ export const CatalogPage: React.FC = () => {
             <select
               value={selectedLang}
               onChange={(e) => {
-                setSelectedLang(e.target.value as any);
+                const nextLang = e.target.value as 'all' | 'ru' | 'os';
+                setSelectedLang(nextLang);
                 setPage(1);
+                const next = new URLSearchParams(searchParams);
+                if (nextLang === 'all') next.delete('lang');
+                else next.set('lang', nextLang);
+                setSearchParams(next, { replace: true });
               }}
               className="rb-btn"
               style={{ background: '#171411' }}
@@ -217,8 +225,24 @@ export const CatalogPage: React.FC = () => {
             >
               <option value="all">Все языки</option>
               <option value="ru">Русский язык</option>
-              <option value="os">Осетинский (ӕ)</option>
+              <option value="os">Ирон ӕвзаг / Осетинский (ӕ)</option>
             </select>
+
+            <button
+              type="button"
+              className={`rb-chip ${selectedLang === 'os' ? 'rb-chip--active' : ''}`}
+              onClick={() => {
+                const nextLang = selectedLang === 'os' ? 'all' : 'os';
+                setSelectedLang(nextLang);
+                setPage(1);
+                const next = new URLSearchParams(searchParams);
+                if (nextLang === 'all') next.delete('lang');
+                else next.set('lang', nextLang);
+                setSearchParams(next, { replace: true });
+              }}
+            >
+              ӕ Ирон чингуытӕ ({books.filter((b) => b.lang === 'os').length || 1050})
+            </button>
 
             {offlineSlugs.size > 0 && (
               <button

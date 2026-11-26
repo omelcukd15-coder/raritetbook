@@ -32,6 +32,7 @@ export interface CatalogManifest {
   version: string;
   generatedAt: string;
   totalBooks: number;
+  ossetianBooks?: number;
   totalWords: number;
   chunkSize: number;
   maxCapacity: number;
@@ -44,10 +45,12 @@ export interface CatalogManifest {
 export interface HomeFeaturedPayload {
   version: string;
   totalBooks: number;
+  ossetianBooks?: number;
   totalWords: number;
   maxCapacity: number;
   shardsCount: number;
   flagships: CatalogBookLite[];
+  ossetian?: CatalogBookLite[];
   science: CatalogBookLite[];
   recent: CatalogBookLite[];
 }

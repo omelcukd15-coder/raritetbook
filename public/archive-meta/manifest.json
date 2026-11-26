@@ -1,8 +1,9 @@
 {
-  "version": "4.0.15000",
-  "generatedAt": "2026-11-25T21:01:00Z",
-  "totalBooks": 15000,
-  "totalWords": 82256443,
+  "version": "4.1.16050",
+  "generatedAt": "2026-11-26T10:12:41Z",
+  "totalBooks": 16050,
+  "ossetianBooks": 1051,
+  "totalWords": 82828166,
   "chunkSize": 5000,
   "maxCapacity": 100000,
   "catMap": [
@@ -24,6 +25,7 @@
   "chunks": [
     "idx-0.json",
     "idx-1.json",
-    "idx-2.json"
+    "idx-2.json",
+    "idx-3.json"
   ]
 }

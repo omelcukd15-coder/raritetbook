@@ -1,4 +1,4 @@
-const CACHE_NAME = 'raritetbook-shell-v6';
+const CACHE_NAME = 'raritetbook-shell-v7';
 const SHELL_ASSETS = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
