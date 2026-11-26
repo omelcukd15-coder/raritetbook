@@ -1,0 +1,50 @@
+[
+  {
+    "id": "history",
+    "slug": "history",
+    "title": "История России",
+    "subtitle": "Отечественная война, Блокада Ленинграда, летописи, исторические труды и архивные документы",
+    "image": "/assets/images/categories/history.webp",
+    "booksCount": 1384
+  },
+  {
+    "id": "russian-classics",
+    "slug": "russian-classics",
+    "title": "Русская классика",
+    "subtitle": "Золотой фонд русской прозы, поэзии и драматургии XVIII – середины XX века",
+    "image": "/assets/images/categories/russian-classics.webp",
+    "booksCount": 12303
+  },
+  {
+    "id": "caucasus",
+    "slug": "caucasus",
+    "title": "Кавказ и Осетия",
+    "subtitle": "Осетинская литература и энциклопедический фонд (ӕ), Нартский эпос и хроники Кавказа",
+    "image": "/assets/images/categories/caucasus.webp",
+    "booksCount": 5544
+  },
+  {
+    "id": "foreign-classics",
+    "slug": "foreign-classics",
+    "title": "Зарубежная классика",
+    "subtitle": "Мировая литература, приключения, фантастика и драматургия в классических переводах",
+    "image": "/assets/images/categories/foreign-classics.webp",
+    "booksCount": 2456
+  },
+  {
+    "id": "science",
+    "slug": "science",
+    "title": "Наука и философия",
+    "subtitle": "Труды русских и мировых учёных, философия, география, этнография и естествознание",
+    "image": "/assets/images/categories/science.webp",
+    "booksCount": 3178
+  },
+  {
+    "id": "rare-editions",
+    "slug": "rare-editions",
+    "title": "Редкие издания и учебники",
+    "subtitle": "Старинные учебные курсы, педагогика, логика, право и редкие дореволюционные книги",
+    "image": "/assets/images/categories/rare-editions.webp",
+    "booksCount": 1227
+  }
+]
