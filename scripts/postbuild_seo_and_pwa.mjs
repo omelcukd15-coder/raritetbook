@@ -157,7 +157,8 @@ function loadAllBooksForSeo() {
   for (const chunkName of manifest.chunks || []) {
     const chunkPath = path.join(ROOT, 'public', 'archive-meta', 'shards', chunkName);
     if (!fs.existsSync(chunkPath)) continue;
-    const rows = JSON.parse(fs.readFileSync(chunkPath, 'utf8'));
+    const chunkJson = JSON.parse(fs.readFileSync(chunkPath, 'utf8'));
+    const rows = Array.isArray(chunkJson) ? chunkJson : chunkJson.r || [];
     for (const row of rows) {
       out.push({
         slug: String(row[0] || ''),
