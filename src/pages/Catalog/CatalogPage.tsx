@@ -241,7 +241,33 @@ export const CatalogPage: React.FC = () => {
                 setSearchParams(next, { replace: true });
               }}
             >
-              ӕ Ирон чингуытӕ ({books.filter((b) => b.lang === 'os').length || 1050})
+              ӕ Ирон чингуытӕ ({books.filter((b) => b.lang === 'os').length || 6050})
+            </button>
+
+            <button
+              type="button"
+              className={`rb-chip ${query === 'Ленинград' || query === 'Отечественная война' ? 'rb-chip--active' : ''}`}
+              onClick={() => {
+                const nextQ = query === 'Ленинград' ? '' : 'Ленинград';
+                setQuery(nextQ);
+                setSelectedCat(nextQ ? 'history' : 'all');
+                setPage(1);
+              }}
+            >
+              Блокада Ленинграда
+            </button>
+
+            <button
+              type="button"
+              className={`rb-chip ${query === 'Отечественная война' ? 'rb-chip--active' : ''}`}
+              onClick={() => {
+                const nextQ = query === 'Отечественная война' ? '' : 'Отечественная война';
+                setQuery(nextQ);
+                setSelectedCat(nextQ ? 'history' : 'all');
+                setPage(1);
+              }}
+            >
+              Отечественная война
             </button>
 
             {offlineSlugs.size > 0 && (

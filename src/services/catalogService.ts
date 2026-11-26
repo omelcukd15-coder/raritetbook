@@ -13,6 +13,7 @@ const ARCHIVE_BASE = (import.meta.env.VITE_ARCHIVE_BASE_URL || '').replace(/\/$/
 const DEFAULT_SHARD_REPOS = [
   'https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books/main',
   'https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-2/main',
+  'https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-3/main',
 ];
 const CF_ARCHIVE_CDN = 'https://archive.raritetbook.ru';
 const SAFE_SLUG_RE = /^[a-z0-9-]+$/i;

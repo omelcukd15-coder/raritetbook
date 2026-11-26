@@ -1,9 +1,9 @@
 {
-  "version": "4.1.16092",
-  "generatedAt": "2026-11-26T17:06:00Z",
-  "totalBooks": 16092,
-  "ossetianBooks": 1051,
-  "totalWords": 83756637,
+  "version": "5.0.26092",
+  "generatedAt": "2026-11-26T18:31:19Z",
+  "totalBooks": 26092,
+  "ossetianBooks": 6051,
+  "totalWords": 104354126,
   "chunkSize": 5000,
   "maxCapacity": 100000,
   "catMap": [
@@ -20,12 +20,15 @@
   ],
   "shardRepos": [
     "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books/main",
-    "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-2/main"
+    "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-2/main",
+    "https://raw.githubusercontent.com/omelcukd15-coder/raritetbook-books-3/main"
   ],
   "chunks": [
     "idx-0.json",
     "idx-1.json",
     "idx-2.json",
-    "idx-3.json"
+    "idx-3.json",
+    "idx-4.json",
+    "idx-5.json"
   ]
 }

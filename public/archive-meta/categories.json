@@ -3,48 +3,48 @@
     "id": "history",
     "slug": "history",
     "title": "История России",
-    "subtitle": "Летописи, исторические труды, Российская империя, мемуары и архивные памятники",
+    "subtitle": "Отечественная война, Блокада Ленинграда, летописи, исторические труды и архивные документы",
     "image": "/assets/images/categories/history.webp",
-    "booksCount": 647
+    "booksCount": 1384
   },
   {
     "id": "russian-classics",
     "slug": "russian-classics",
     "title": "Русская классика",
-    "subtitle": "Золотой фонд русской прозы, поэзии и драматургии XVIII – начала XX века",
+    "subtitle": "Золотой фонд русской прозы, поэзии и драматургии XVIII – середины XX века",
     "image": "/assets/images/categories/russian-classics.webp",
-    "booksCount": 9170
+    "booksCount": 12303
   },
   {
     "id": "caucasus",
     "slug": "caucasus",
     "title": "Кавказ и Осетия",
-    "subtitle": "Осетинская классика в оригинале (ӕ), Нартский эпос, хроники и этнография Кавказа",
+    "subtitle": "Осетинская литература и энциклопедический фонд (ӕ), Нартский эпос и хроники Кавказа",
     "image": "/assets/images/categories/caucasus.webp",
-    "booksCount": 1075
+    "booksCount": 5544
   },
   {
     "id": "foreign-classics",
     "slug": "foreign-classics",
     "title": "Зарубежная классика",
-    "subtitle": "Мировая литература, приключения, фантастика и готика в классических переводах",
+    "subtitle": "Мировая литература, приключения, фантастика и драматургия в классических переводах",
     "image": "/assets/images/categories/foreign-classics.webp",
-    "booksCount": 1773
+    "booksCount": 2456
   },
   {
     "id": "science",
     "slug": "science",
     "title": "Наука и философия",
-    "subtitle": "Труды русских и мировых учёных, философия, география, психология и естествознание",
+    "subtitle": "Труды русских и мировых учёных, философия, география, этнография и естествознание",
     "image": "/assets/images/categories/science.webp",
-    "booksCount": 2431
+    "booksCount": 3178
   },
   {
     "id": "rare-editions",
     "slug": "rare-editions",
     "title": "Редкие издания и учебники",
-    "subtitle": "Старинные учебные курсы, педагогика, логика, публицистика и редкие дореволюционные книги",
+    "subtitle": "Старинные учебные курсы, педагогика, логика, право и редкие дореволюционные книги",
     "image": "/assets/images/categories/rare-editions.webp",
-    "booksCount": 996
+    "booksCount": 1227
   }
 ]
