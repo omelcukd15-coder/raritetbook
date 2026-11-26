@@ -5,7 +5,7 @@
     "title": "История России",
     "subtitle": "Летописи, исторические труды, Российская империя, мемуары и архивные памятники",
     "image": "/assets/images/categories/history.webp",
-    "booksCount": 660
+    "booksCount": 647
   },
   {
     "id": "russian-classics",
@@ -13,7 +13,7 @@
     "title": "Русская классика",
     "subtitle": "Золотой фонд русской прозы, поэзии и драматургии XVIII – начала XX века",
     "image": "/assets/images/categories/russian-classics.webp",
-    "booksCount": 9129
+    "booksCount": 9128
   },
   {
     "id": "caucasus",
@@ -21,7 +21,7 @@
     "title": "Кавказ и Осетия",
     "subtitle": "Осетинская классика в оригинале (ӕ), Нартский эпос, хроники и этнография Кавказа",
     "image": "/assets/images/categories/caucasus.webp",
-    "booksCount": 1291
+    "booksCount": 1075
   },
   {
     "id": "foreign-classics",
@@ -29,7 +29,7 @@
     "title": "Зарубежная классика",
     "subtitle": "Мировая литература, приключения, фантастика и готика в классических переводах",
     "image": "/assets/images/categories/foreign-classics.webp",
-    "booksCount": 1692
+    "booksCount": 1773
   },
   {
     "id": "science",
@@ -37,7 +37,7 @@
     "title": "Наука и философия",
     "subtitle": "Труды русских и мировых учёных, философия, география, психология и естествознание",
     "image": "/assets/images/categories/science.webp",
-    "booksCount": 2315
+    "booksCount": 2431
   },
   {
     "id": "rare-editions",
@@ -45,6 +45,6 @@
     "title": "Редкие издания и учебники",
     "subtitle": "Старинные учебные курсы, педагогика, логика, публицистика и редкие дореволюционные книги",
     "image": "/assets/images/categories/rare-editions.webp",
-    "booksCount": 963
+    "booksCount": 996
   }
 ]

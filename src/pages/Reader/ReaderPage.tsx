@@ -41,6 +41,23 @@ function renderSafeRichText(htmlStr: string): React.ReactNode[] {
   return out;
 }
 
+function computeEffectiveScrollRatio(): number {
+  const rawMax = document.documentElement.scrollHeight - window.innerHeight;
+  // Если глава целиком помещается на экран (или почти помещается) — она уже прочитана до конца (1.0)!
+  if (rawMax <= 36) return 1;
+  // Если читатель докрутил до нижнего края текста (с допуском 56px на мобильные панели) — фиксируем 1.0!
+  if (rawMax - window.scrollY <= 56) return 1;
+  return Math.min(1, Math.max(0, window.scrollY / rawMax));
+}
+
+function calcBookPercent(chIndex: number, ratio: number, totalChapters: number): number {
+  const total = Math.max(1, totalChapters);
+  if (chIndex >= total - 1 && ratio >= 0.93) {
+    return 100;
+  }
+  return Math.min(100, Math.max(1, Math.round(((chIndex + ratio) / total) * 100)));
+}
+
 export const ReaderPage: React.FC = () => {
   const { slug = '' } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -102,8 +119,7 @@ export const ReaderPage: React.FC = () => {
   const persistPosition = useCallback(
     (chIndex: number, ratio: number, customBookmark = bookmark, immediate = false) => {
       if (!book) return;
-      const totalCh = Math.max(1, book.chapters.length);
-      const overall = Math.min(100, Math.max(1, Math.round(((chIndex + ratio) / totalCh) * 100)));
+      const overall = calcBookPercent(chIndex, ratio, book.chapters.length);
       saveBookProgress(
         {
           slug: book.slug,
@@ -119,6 +135,18 @@ export const ReaderPage: React.FC = () => {
     [book, bookmark]
   );
 
+  // Автопроверка после рендера главы: если глава короткая и уместилась на экране без скролла, сразу засчитываем её (и 100% на последней главе!)
+  useEffect(() => {
+    if (!book) return;
+    const t = setTimeout(() => {
+      if (restoringScrollRef.current) return;
+      const ratio = computeEffectiveScrollRatio();
+      setScrollRatio(ratio);
+      persistPosition(chapterIdx, ratio);
+    }, 220);
+    return () => clearTimeout(t);
+  }, [book, chapterIdx, settings.fontSize, settings.lineHeight, settings.columnWidth, persistPosition]);
+
   useEffect(() => {
     const syncSettings = () => setSettings(getReaderSettings());
     window.addEventListener('raritetbook:settings-updated', syncSettings);
@@ -128,19 +156,20 @@ export const ReaderPage: React.FC = () => {
   useEffect(() => {
     const onScroll = () => {
       if (restoringScrollRef.current || !book) return;
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const ratio = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+      const ratio = computeEffectiveScrollRatio();
       setScrollRatio(ratio);
 
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(() => {
         persistPosition(chapterIdx, ratio);
-      }, 650);
+      }, 500);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [book, chapterIdx, persistPosition]);
@@ -235,10 +264,7 @@ export const ReaderPage: React.FC = () => {
   }
 
   const chapter = book.chapters[chapterIdx] || book.chapters[0];
-  const overallPercent = Math.min(
-    100,
-    Math.max(1, Math.round(((chapterIdx + scrollRatio) / Math.max(1, book.chapters.length)) * 100))
-  );
+  const overallPercent = calcBookPercent(chapterIdx, scrollRatio, book.chapters.length);
   const hasBookmarkHere = bookmark?.chapterIndex === chapterIdx;
 
   return (

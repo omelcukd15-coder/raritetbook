@@ -6,22 +6,13 @@ import { Header } from './components/Header/Header';
 import { Footer } from './components/Footer/Footer';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { HomePage } from './pages/Home/HomePage';
+import { CatalogPage } from './pages/Catalog/CatalogPage';
+import { BookPage } from './pages/Book/BookPage';
+import { ReaderPage } from './pages/Reader/ReaderPage';
+import { AuthorPage } from './pages/Author/AuthorPage';
+import { AboutPage } from './pages/About/AboutPage';
 
-const CatalogPage = lazy(() =>
-  import('./pages/Catalog/CatalogPage').then((m) => ({ default: m.CatalogPage }))
-);
-const BookPage = lazy(() =>
-  import('./pages/Book/BookPage').then((m) => ({ default: m.BookPage }))
-);
-const ReaderPage = lazy(() =>
-  import('./pages/Reader/ReaderPage').then((m) => ({ default: m.ReaderPage }))
-);
-const AuthorPage = lazy(() =>
-  import('./pages/Author/AuthorPage').then((m) => ({ default: m.AuthorPage }))
-);
-const AboutPage = lazy(() =>
-  import('./pages/About/AboutPage').then((m) => ({ default: m.AboutPage }))
-);
+// В основной бандл включены все читательские экраны (+12 КБ gzip), чтобы в авиарежиме переходы Назад/Каталог/Читалка никогда не падали с ChunkLoadError!
 const AdminImportPage = lazy(() =>
   import('./pages/Admin/AdminImportPage').then((m) => ({ default: m.AdminImportPage }))
 );

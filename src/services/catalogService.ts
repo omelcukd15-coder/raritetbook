@@ -6,7 +6,7 @@ import type {
   FullBookData,
   HomeFeaturedPayload,
 } from '../types/library';
-import { getCachedBook, saveBookOffline } from './offlineDb';
+import { getCachedBook, listOfflineBooksLite, saveBookOffline } from './offlineDb';
 
 const ARCHIVE_BASE = (import.meta.env.VITE_ARCHIVE_BASE_URL || '').replace(/\/$/, '');
 const DEFAULT_SHARD_REPOS = [
@@ -15,6 +15,10 @@ const DEFAULT_SHARD_REPOS = [
 ];
 const CF_ARCHIVE_CDN = 'https://archive.raritetbook.ru';
 const SAFE_SLUG_RE = /^[a-z0-9-]+$/i;
+
+const LS_MANIFEST_KEY = 'raritetbook_cached_manifest_v1';
+const LS_HOME_KEY = 'raritetbook_cached_home_v1';
+const LS_CATS_KEY = 'raritetbook_cached_cats_v1';
 
 let cachedManifest: CatalogManifest | null = null;
 let cachedHomeFeatured: HomeFeaturedPayload | null = null;
@@ -30,6 +34,23 @@ const catalogListeners = new Set<(books: CatalogBookLite[], done: boolean) => vo
 let workerInstance: Worker | null = null;
 let workerReqSeq = 0;
 const pendingSearch = new Map<number, (ids: string[] | null) => void>();
+
+function saveLsJson(key: string, val: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    // ignore quota
+  }
+}
+
+function readLsJson<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function fetchWithTimeout(url: string, timeoutMs = 9_000): Promise<Response> {
   const ctrl = new AbortController();
@@ -64,9 +85,6 @@ function getWorker(): Worker | null {
   }
 }
 
-/**
- * Распаковка компактного 14-элементного кортежа чанка в объект CatalogBookLite
- */
 function decodeTupleRow(row: any[], catMap: CategoryId[], langMap: string[]): CatalogBookLite {
   const slug = String(row[0] || '');
   return {
@@ -92,29 +110,66 @@ function decodeTupleRow(row: any[], catMap: CategoryId[], langMap: string[]): Ca
   };
 }
 
+function mergeUniqueBooks(primary: CatalogBookLite[], extra: CatalogBookLite[]): CatalogBookLite[] {
+  if (!extra.length) return primary;
+  const seen = new Set(primary.map((b) => b.slug));
+  const merged = [...primary];
+  for (const item of extra) {
+    if (item?.slug && !seen.has(item.slug)) {
+      seen.add(item.slug);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 export async function loadCatalogManifest(): Promise<CatalogManifest> {
   if (cachedManifest) return cachedManifest;
-  const resp = await fetchWithTimeout('/archive-meta/manifest.json', 8_000);
-  if (!resp.ok) throw new Error('Не удалось загрузить манифест архива');
-  cachedManifest = await resp.json();
-  return cachedManifest!;
+  try {
+    const resp = await fetchWithTimeout('/archive-meta/manifest.json', 8_000);
+    if (!resp.ok) throw new Error('manifest http error');
+    cachedManifest = await resp.json();
+    saveLsJson(LS_MANIFEST_KEY, cachedManifest);
+    return cachedManifest!;
+  } catch {
+    const fallback = readLsJson<CatalogManifest>(LS_MANIFEST_KEY);
+    if (fallback) {
+      cachedManifest = fallback;
+      return fallback;
+    }
+    throw new Error('Манифест недоступен в офлайн-режиме');
+  }
 }
 
-/**
- * Мгновенная витрина Главной страницы (~14 КБ вместо мегабайтного каталога -> старт за 0.1с на любом телефоне!)
- */
 export async function loadHomeFeatured(): Promise<HomeFeaturedPayload> {
   if (cachedHomeFeatured) return cachedHomeFeatured;
-  const resp = await fetchWithTimeout('/archive-meta/home-featured.json', 8_000);
-  if (!resp.ok) throw new Error('Не удалось загрузить витрину главной');
-  cachedHomeFeatured = await resp.json();
-  return cachedHomeFeatured!;
+  try {
+    const resp = await fetchWithTimeout('/archive-meta/home-featured.json', 8_000);
+    if (!resp.ok) throw new Error('home-featured http error');
+    cachedHomeFeatured = await resp.json();
+    saveLsJson(LS_HOME_KEY, cachedHomeFeatured);
+    return cachedHomeFeatured!;
+  } catch {
+    const fallback = readLsJson<HomeFeaturedPayload>(LS_HOME_KEY);
+    if (fallback) {
+      cachedHomeFeatured = fallback;
+      return fallback;
+    }
+    const offBooks = await listOfflineBooksLite();
+    return {
+      version: 'offline',
+      totalBooks: offBooks.length || 16000,
+      totalWords: 85_000_000,
+      maxCapacity: 100000,
+      shardsCount: 2,
+      flagships: offBooks,
+      ossetian: offBooks.filter((b) => b.lang === 'os'),
+      science: offBooks.filter((b) => b.cat === 'science' || b.cat === 'rare-editions'),
+      recent: offBooks,
+    };
+  }
 }
 
-/**
- * Подписка на потоковую подгрузку чанков каталога (по 5 000 книг, до 100 000+ томов без фризов UI):
- * 1-й чанк (5 000 книг) отдаётся за ~120 мс, остальные догружаются в фоне с yield между кадрами.
- */
 export function subscribeShardedCatalog(
   onUpdate: (books: CatalogBookLite[], done: boolean, totalExpected: number) => void
 ): () => void {
@@ -152,22 +207,47 @@ export async function loadFirstCatalogChunk(): Promise<CatalogBookLite[]> {
   if (firstChunkPromise) return firstChunkPromise;
 
   firstChunkPromise = (async () => {
-    const manifest = await loadCatalogManifest();
-    if (!manifest.chunks.length) return [];
-    const chunk0 = await fetchSingleChunk(manifest.chunks[0], manifest);
-    firstChunkBooks = chunk0;
-    const w = getWorker();
-    if (w) {
-      w.postMessage({ type: 'INIT', payload: { books: chunk0 } });
+    try {
+      const manifest = await loadCatalogManifest();
+      if (!manifest.chunks.length) return [];
+      const chunk0 = await fetchSingleChunk(manifest.chunks[0], manifest);
+      const offlineExtras = await listOfflineBooksLite();
+      firstChunkBooks = mergeUniqueBooks(chunk0, offlineExtras);
+      const w = getWorker();
+      if (w) {
+        w.postMessage({ type: 'INIT', payload: { books: firstChunkBooks } });
+      }
+      for (const fn of catalogListeners) {
+        fn(firstChunkBooks, manifest.chunks.length === 1);
+      }
+      return firstChunkBooks;
+    } catch {
+      // Полный авиарежим без кэшированного чанка: отдаём сохранённые в IndexedDB книги + локальную витрину!
+      const [offlineBooks, homeFallback] = await Promise.all([
+        listOfflineBooksLite(),
+        loadHomeFeatured().catch(() => null),
+      ]);
+      const homePool = homeFallback
+        ? [
+            ...(homeFallback.flagships || []),
+            ...(homeFallback.ossetian || []),
+            ...(homeFallback.science || []),
+            ...(homeFallback.recent || []),
+          ]
+        : [];
+      const combined = mergeUniqueBooks(offlineBooks, homePool);
+      firstChunkBooks = combined;
+      const w = getWorker();
+      if (w && combined.length > 0) {
+        w.postMessage({ type: 'INIT', payload: { books: combined } });
+      }
+      for (const fn of catalogListeners) {
+        fn(combined, true);
+      }
+      firstChunkPromise = null;
+      return combined;
     }
-    for (const fn of catalogListeners) {
-      fn(chunk0, manifest.chunks.length === 1);
-    }
-    return chunk0;
-  })().catch((err) => {
-    firstChunkPromise = null;
-    throw err;
-  });
+  })();
 
   return firstChunkPromise;
 }
@@ -177,60 +257,96 @@ export async function loadCatalogLite(): Promise<CatalogBookLite[]> {
   if (fullStreamPromise) return fullStreamPromise;
 
   fullStreamPromise = (async () => {
-    const manifest = await loadCatalogManifest();
     const first = await loadFirstCatalogChunk();
-    let accumulated = [...first];
+    let manifest: CatalogManifest | null = null;
+    try {
+      manifest = await loadCatalogManifest();
+    } catch {
+      manifest = null;
+    }
 
-    if (manifest.chunks.length > 1) {
-      const w = getWorker();
-      // Потоковая подгрузка остальных чанков по 2 параллельно с уступкой главному потоку (yield 12мс) для 60 FPS на старых смартфонах
-      for (let i = 1; i < manifest.chunks.length; i += 2) {
-        const pair = manifest.chunks.slice(i, i + 2);
-        const loadedChunks = await Promise.all(pair.map((cf) => fetchSingleChunk(cf, manifest)));
-        for (const chBooks of loadedChunks) {
-          accumulated = accumulated.concat(chBooks);
+    if (!manifest || manifest.chunks.length <= 1) {
+      for (const fn of catalogListeners) {
+        fn(first, true);
+      }
+      if (navigator.onLine) {
+        cachedCatalog = first;
+      } else {
+        fullStreamPromise = null;
+      }
+      return first;
+    }
+
+    let accumulated = [...first];
+    let allSucceeded = true;
+    const w = getWorker();
+
+    for (let i = 1; i < manifest.chunks.length; i += 2) {
+      const pair = manifest.chunks.slice(i, i + 2);
+      const loadedChunks = await Promise.all(
+        pair.map((cf) =>
+          fetchSingleChunk(cf, manifest!).catch(() => {
+            allSucceeded = false;
+            return [] as CatalogBookLite[];
+          })
+        )
+      );
+      for (const chBooks of loadedChunks) {
+        if (chBooks.length > 0) {
+          accumulated = mergeUniqueBooks(accumulated, chBooks);
           if (w) {
             w.postMessage({ type: 'ADD_CHUNK', payload: { books: chBooks } });
           }
         }
-        const isLast = i + 2 >= manifest.chunks.length;
-        for (const fn of catalogListeners) {
-          fn(accumulated, isLast);
-        }
-        if (!isLast) {
-          await new Promise((r) => setTimeout(r, 12));
-        }
+      }
+      const isLast = i + 2 >= manifest.chunks.length;
+      for (const fn of catalogListeners) {
+        fn(accumulated, isLast);
+      }
+      if (!isLast) {
+        await new Promise((r) => setTimeout(r, 12));
       }
     }
 
-    cachedCatalog = accumulated;
     firstChunkBooks = accumulated;
+    if (allSucceeded) {
+      cachedCatalog = accumulated;
+    } else {
+      // Если часть шардов была недоступна в авиарежиме — разрешаем догрузить их позже при появлении сети
+      fullStreamPromise = null;
+    }
     for (const fn of catalogListeners) {
       fn(accumulated, true);
     }
     return accumulated;
-  })().catch((err) => {
-    fullStreamPromise = null;
-    throw err;
-  });
+  })();
 
   return fullStreamPromise;
 }
 
 export async function loadCategories(): Promise<CategoryMeta[]> {
   if (cachedCategories) return cachedCategories;
-  const resp = await fetchWithTimeout('/archive-meta/categories.json', 8_000);
-  if (!resp.ok) return [];
-  const data = await resp.json();
-  cachedCategories = data;
-  return data;
+  try {
+    const resp = await fetchWithTimeout('/archive-meta/categories.json', 8_000);
+    if (!resp.ok) throw new Error('categories http error');
+    const data = await resp.json();
+    cachedCategories = data;
+    saveLsJson(LS_CATS_KEY, data);
+    return data;
+  } catch {
+    const fallback = readLsJson<CategoryMeta[]>(LS_CATS_KEY);
+    if (fallback) {
+      cachedCategories = fallback;
+      return fallback;
+    }
+    return [];
+  }
 }
 
 export async function searchBooksInWorker(query: string): Promise<string[] | null> {
   const clean = query.trim().slice(0, 100);
   if (!clean) return null;
 
-  // Не блокируем поиск ожиданием всех 100к книг: начинаем искать уже по первому чанку и запускаем фоновый стрим!
   await loadFirstCatalogChunk();
   void loadCatalogLite();
 
@@ -294,7 +410,7 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
     throw new Error('Некорректный адрес произведения.');
   }
 
-  // 1. Мгновенная проверка IndexedDB (PWA офлайн-чтение)
+  // 1. Мгновенная проверка IndexedDB (PWA офлайн-чтение в авиарежиме и в горах)
   const offline = await getCachedBook(slug);
   if (offline) {
     return { book: offline, fromOfflineCache: true };
@@ -302,7 +418,11 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
 
   const entry = await findBookCatalogEntry(slug);
   if (!entry || !SAFE_SLUG_RE.test(entry.aslug) || !SAFE_SLUG_RE.test(entry.slug)) {
-    throw new Error('Произведение не найдено в каталоге библиотеки.');
+    throw new Error(
+      navigator.onLine
+        ? 'Произведение не найдено в каталоге библиотеки.'
+        : 'Эта книга ещё не была открыта ранее и недоступна в авиарежиме. Откройте сохранённые книги или включите сеть.'
+    );
   }
 
   const shardRepo = getShardRepoBase(entry.sh || 0);
@@ -322,7 +442,7 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
       const resp = await fetchWithTimeout(url, 9_000);
       if (resp.ok) {
         const fullBook: FullBookData = await resp.json();
-        void saveBookOffline(fullBook);
+        await saveBookOffline(fullBook);
         return { book: fullBook, fromOfflineCache: false };
       }
     } catch (e: any) {
@@ -330,5 +450,12 @@ export async function loadFullBook(slug: string): Promise<{ book: FullBookData; 
     }
   }
 
-  throw lastErr || new Error('Не удалось загрузить том из архива. Проверьте подключение к сети.');
+  throw (
+    lastErr ||
+    new Error(
+      navigator.onLine
+        ? 'Не удалось загрузить том из архива. Проверьте подключение к сети.'
+        : 'Включён авиарежим: эта книга ещё не сохранена в памяти телефона.'
+    )
+  );
 }

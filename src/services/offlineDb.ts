@@ -1,4 +1,4 @@
-import type { FullBookData } from '../types/library';
+import type { CatalogBookLite, FullBookData } from '../types/library';
 
 const DB_NAME = 'raritetbook-offline-v2';
 const STORE_BOOKS = 'books';
@@ -62,6 +62,53 @@ export async function listOfflineBookSlugs(): Promise<string[]> {
       const tx = db.transaction(STORE_BOOKS, 'readonly');
       const req = tx.objectStore(STORE_BOOKS).getAllKeys();
       req.onsuccess = () => resolve((req.result || []).map(String));
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Возвращает карточки всех сохранённых в телефоне книг из IndexedDB,
+ * чтобы каталог и главная идеально работали в авиарежиме даже без загруженных сетевых шардов!
+ */
+export async function listOfflineBooksLite(): Promise<CatalogBookLite[]> {
+  try {
+    const db = await openOfflineDb();
+    return await new Promise((resolve) => {
+      const tx = db.transaction(STORE_BOOKS, 'readonly');
+      const req = tx.objectStore(STORE_BOOKS).getAll();
+      req.onsuccess = () => {
+        const records: any[] = req.result || [];
+        const out: CatalogBookLite[] = [];
+        for (const rec of records) {
+          const b: FullBookData | undefined = rec?.data;
+          if (!b?.slug) continue;
+          out.push({
+            id: b.slug,
+            slug: b.slug,
+            t: b.title,
+            alt: b.altTitles || [],
+            a: b.author,
+            as: b.authorShort,
+            aslug: b.authorSlug,
+            ay: b.authorYears || '',
+            tr: b.translator || null,
+            lang: b.language || 'ru',
+            cat: b.category,
+            wy: b.writtenYear || '',
+            ey: b.editionYear || '',
+            d: (b.description || '').slice(0, 65),
+            ch: b.stats?.chaptersCount || b.chapters?.length || 1,
+            w: b.stats?.wordsCount || 0,
+            rm: b.stats?.readingMinutes || 5,
+            rank: 50,
+            sh: b.shard || 0,
+          });
+        }
+        resolve(out);
+      };
       req.onerror = () => resolve([]);
     });
   } catch {
