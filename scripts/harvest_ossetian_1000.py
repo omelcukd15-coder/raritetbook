@@ -165,6 +165,7 @@ def parse_ws_ossetian_work(title_raw: str, wt: str):
     wt = norm_os(wt)
     # 1. Вырезаем {{header|...}}
     wt_no_hdr, hdrs = extract_balanced_templates(wt, r"header")
+    wt_no_hdr = re.sub(r"@@TMPL_\d+@@", "", wt_no_hdr)
     meta = {}
     if hdrs:
         for line in hdrs[0].split("\n"):
